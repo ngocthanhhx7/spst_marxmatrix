@@ -23,6 +23,7 @@ function isLocalMongoUri(uri: string): boolean {
 
 const baseEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  ALLOW_SELF_HOSTED_PRODUCTION: booleanFromString.default(false),
   PORT: numericString.default(3000),
   FRONTEND_URL: z.url(),
   CORS_ORIGINS: z.string().min(1),
@@ -83,13 +84,13 @@ export const environmentSchema = baseEnvironmentSchema.superRefine((environment,
         path: ['AI_PROVIDER'],
         message: 'AI_PROVIDER must not be mock in production.'
       });
-    if (environment.RAG_VECTOR_PROVIDER !== 'atlas')
+    if (!environment.ALLOW_SELF_HOSTED_PRODUCTION && environment.RAG_VECTOR_PROVIDER !== 'atlas')
       context.addIssue({
         code: 'custom',
         path: ['RAG_VECTOR_PROVIDER'],
         message: 'RAG_VECTOR_PROVIDER must be atlas in production.'
       });
-    if (isLocalMongoUri(environment.MONGODB_URI))
+    if (!environment.ALLOW_SELF_HOSTED_PRODUCTION && isLocalMongoUri(environment.MONGODB_URI))
       context.addIssue({
         code: 'custom',
         path: ['MONGODB_URI'],

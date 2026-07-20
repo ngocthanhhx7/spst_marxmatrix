@@ -49,6 +49,21 @@ const demoEnvironment = {
   DEMO_MODE: 'true'
 };
 
+const selfHostedProductionEnvironment = {
+  ...demoEnvironment,
+  NODE_ENV: 'production',
+  FRONTEND_URL: 'https://app.marxmatrix.example',
+  CORS_ORIGINS: 'https://app.marxmatrix.example',
+  MONGODB_URI: 'mongodb://127.0.0.1:27017',
+  JWT_ACCESS_SECRET: '84a7c1e9d4f2b6a8c3e5f7d9b1a4c6e8f2d5a7c9',
+  JWT_REFRESH_SECRET: '2f8c4a6e1d9b7c5e3a8f6d4b2c9e7a5f1d8c6b4',
+  COOKIE_SECURE: 'true',
+  AI_PROVIDER: 'gemini',
+  GEMINI_API_KEY: 'gemini-production-key',
+  RAG_VECTOR_PROVIDER: 'local',
+  DEMO_MODE: 'false'
+};
+
 @Controller('test-error')
 class TestErrorController {
   @Get()
@@ -106,6 +121,38 @@ describe('API platform', () => {
         GEMINI_API_KEY: ''
       })
     ).toThrow(/GEMINI_API_KEY/);
+  });
+  it('rejects self-hosted production configuration without the explicit opt-in', () => {
+    expect(() => parseEnvironment(selfHostedProductionEnvironment)).toThrow(
+      /MONGODB_URI|RAG_VECTOR_PROVIDER/
+    );
+  });
+  it('permits explicitly opted-in self-hosted production configuration', () => {
+    const environment = parseEnvironment({
+      ...selfHostedProductionEnvironment,
+      ALLOW_SELF_HOSTED_PRODUCTION: 'true'
+    });
+    expect(environment).toMatchObject({
+      ALLOW_SELF_HOSTED_PRODUCTION: true,
+      MONGODB_URI: 'mongodb://127.0.0.1:27017',
+      RAG_VECTOR_PROVIDER: 'local'
+    });
+  });
+  it('keeps cookie and CORS production safeguards with self-hosted opt-in', () => {
+    expect(() =>
+      parseEnvironment({
+        ...selfHostedProductionEnvironment,
+        ALLOW_SELF_HOSTED_PRODUCTION: 'true',
+        COOKIE_SECURE: 'false'
+      })
+    ).toThrow(/COOKIE_SECURE/);
+    expect(() =>
+      parseEnvironment({
+        ...selfHostedProductionEnvironment,
+        ALLOW_SELF_HOSTED_PRODUCTION: 'true',
+        CORS_ORIGINS: '*'
+      })
+    ).toThrow(/CORS_ORIGINS/);
   });
   it('treats a copied blank Gemini key as absent in demo mode', () => {
     expect(
