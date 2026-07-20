@@ -292,6 +292,7 @@ describe('API platform', () => {
     }).compile();
     const app = moduleRef.createNestApplication<NestExpressApplication>();
     configureApplication(app);
+    expect(app.getHttpAdapter().getInstance().get('trust proxy')).toBe('loopback');
     await app.init();
     const server = app.getHttpServer();
     await request(server)

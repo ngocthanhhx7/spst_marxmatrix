@@ -17,6 +17,10 @@ import { RequestLoggingInterceptor } from './observability/request-logging.inter
 export function configureApplication(app: INestApplication): INestApplication {
   const config = app.get(ConfigService);
   const logger = app.get(Logger);
+  const httpInstance = app.getHttpAdapter().getInstance() as {
+    set(name: string, value: unknown): void;
+  };
+  httpInstance.set('trust proxy', 'loopback');
   const corsOrigins = config
     .getOrThrow<string>('CORS_ORIGINS')
     .split(',')

@@ -96,6 +96,7 @@ fi
 install -m 644 "${APP_DIR}/deploy/ec2/marxmatrix-api.service" /etc/systemd/system/marxmatrix-api.service
 install -m 644 "${APP_DIR}/deploy/ec2/marxmatrix-worker.service" /etc/systemd/system/marxmatrix-worker.service
 install -m 644 "${APP_DIR}/deploy/ec2/nginx-marxmatrix.conf" /etc/nginx/conf.d/marxmatrix.conf
+"${APP_DIR}/deploy/ec2/refresh-cloudflare-ips.sh"
 systemctl daemon-reload
 nginx -t
 systemctl enable --now nginx
