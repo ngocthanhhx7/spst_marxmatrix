@@ -7,6 +7,8 @@ export const courseIdSchema = z
   .regex(/^[A-Z]{2,12}\d{2,6}$/);
 /** Server-owned corpus key for documents uploaded by an individual Copilot user. */
 export const PERSONAL_COPILOT_COURSE_ID = 'COPILOT01' as const;
+/** One embedding space shared by persisted chunks and every retrieval adapter. */
+export const RAG_EMBEDDING_DIMENSION = 768;
 export const ragModeSchema = z.enum(['query', 'outline', 'comparison', 'critique']);
 export const ragQuerySchema = z.object({
   courseId: courseIdSchema,
@@ -61,7 +63,7 @@ export const ragChunkSchema = z
     pageEnd: z.number().int().min(1),
     text: z.string().min(1),
     checksum: z.string().regex(/^[a-f\d]{64}$/i),
-    embedding: z.array(z.number().finite()).min(1).max(256)
+    embedding: z.array(z.number().finite()).length(RAG_EMBEDDING_DIMENSION)
   })
   .refine((chunk) => chunk.pageEnd >= chunk.pageStart, {
     message: 'pageEnd must not precede pageStart.'

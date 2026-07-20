@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Schema as MongooseSchema, Types, type HydratedDocument } from 'mongoose';
+import { RAG_EMBEDDING_DIMENSION } from '@marxmatrix/contracts';
 
 export type StoredRagChunk = HydratedDocument<RagChunkRecord>;
 
@@ -19,7 +20,10 @@ export class RagChunkRecord {
   @Prop({
     type: [Number],
     required: true,
-    validate: [(value: number[]) => value.length > 0, 'embedding required']
+    validate: [
+      (value: number[]) => value.length === RAG_EMBEDDING_DIMENSION,
+      `embedding must contain ${RAG_EMBEDDING_DIMENSION} dimensions`
+    ]
   })
   embedding!: number[];
   createdAt!: Date;

@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
+import { RAG_EMBEDDING_DIMENSION } from '@marxmatrix/contracts';
+
+export { RAG_EMBEDDING_DIMENSION } from '@marxmatrix/contracts';
 
 export interface TextEmbedder {
   embed(text: string): Promise<number[]>;
 }
-
-/** Shared persisted-vector width for demo, local Mongo and Atlas repositories. */
-export const RAG_EMBEDDING_DIMENSION = 768;
 
 /** Deterministic, non-network demo embedding; live providers must be explicitly configured separately. */
 export class DeterministicTextEmbedder implements TextEmbedder {

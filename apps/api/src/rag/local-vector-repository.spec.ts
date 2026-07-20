@@ -5,6 +5,13 @@ const ownerId = '507f1f77bcf86cd799439011';
 const documentId = '507f1f77bcf86cd799439012';
 const otherDocumentId = '507f1f77bcf86cd799439013';
 
+function vector(first: number, second: number): number[] {
+  const value = new Array<number>(768).fill(0);
+  value[0] = first;
+  value[1] = second;
+  return value;
+}
+
 describe('LocalVectorRepository', () => {
   it('orders cosine matches while enforcing owner, course and document filters', async () => {
     const repository = new LocalVectorRepository([
@@ -18,7 +25,7 @@ describe('LocalVectorRepository', () => {
         pageEnd: 1,
         text: 'phù hợp nhất',
         checksum: 'a'.repeat(64),
-        embedding: [1, 0]
+        embedding: vector(1, 0)
       },
       {
         id: '507f1f77bcf86cd799439015',
@@ -30,7 +37,7 @@ describe('LocalVectorRepository', () => {
         pageEnd: 2,
         text: 'phù hợp thứ hai',
         checksum: 'b'.repeat(64),
-        embedding: [0.5, 0.5]
+        embedding: vector(0.5, 0.5)
       },
       {
         id: '507f1f77bcf86cd799439016',
@@ -42,7 +49,7 @@ describe('LocalVectorRepository', () => {
         pageEnd: 1,
         text: 'không được truy xuất',
         checksum: 'c'.repeat(64),
-        embedding: [1, 0]
+        embedding: vector(1, 0)
       }
     ]);
 
@@ -51,7 +58,7 @@ describe('LocalVectorRepository', () => {
       courseId: 'MLN112',
       documentIds: [documentId],
       documentParseTokens: [{ documentId, parseToken: 'token' }],
-      queryVector: [1, 0],
+      queryVector: vector(1, 0),
       limit: 2
     });
 
@@ -70,7 +77,7 @@ describe('LocalVectorRepository', () => {
         courseId: 'MLN112',
         documentIds: [documentId],
         documentParseTokens: [{ documentId, parseToken: 'token' }],
-        queryVector: [0, 0],
+        queryVector: vector(0, 0),
         limit: 1
       })
     ).resolves.toEqual([]);
@@ -80,7 +87,7 @@ describe('LocalVectorRepository', () => {
         courseId: 'MLN112',
         documentIds: [],
         documentParseTokens: [],
-        queryVector: [1, 0],
+        queryVector: vector(1, 0),
         limit: 1
       })
     ).rejects.toThrow('document filter');
@@ -98,7 +105,7 @@ describe('LocalVectorRepository', () => {
         pageEnd: 1,
         text: 'stale source',
         checksum: 'd'.repeat(64),
-        embedding: [1, 0]
+        embedding: vector(1, 0)
       },
       {
         id: '507f1f77bcf86cd799439018',
@@ -110,7 +117,7 @@ describe('LocalVectorRepository', () => {
         pageEnd: 1,
         text: 'current source',
         checksum: 'e'.repeat(64),
-        embedding: [0, 1]
+        embedding: vector(0, 1)
       }
     ]);
 
@@ -119,10 +126,40 @@ describe('LocalVectorRepository', () => {
       courseId: 'MLN112',
       documentIds: [documentId],
       documentParseTokens: [{ documentId, parseToken: 'current-token' }],
-      queryVector: [1, 0],
+      queryVector: vector(1, 0),
       limit: 2
     });
 
     expect(results.map((result) => result.id)).toEqual(['507f1f77bcf86cd799439018']);
+  });
+
+  it('retrieves against the production 768-dimensional embedding contract', async () => {
+    const vector = new Array<number>(768).fill(0);
+    vector[767] = 1;
+    const repository = new LocalVectorRepository([
+      {
+        id: '507f1f77bcf86cd799439019',
+        ownerId,
+        courseId: 'MLN112',
+        documentId,
+        parseToken: 'token',
+        pageStart: 1,
+        pageEnd: 1,
+        text: 'production-width source',
+        checksum: 'f'.repeat(64),
+        embedding: vector
+      }
+    ]);
+
+    await expect(
+      repository.search({
+        ownerId,
+        courseId: 'MLN112',
+        documentIds: [documentId],
+        documentParseTokens: [{ documentId, parseToken: 'token' }],
+        queryVector: vector,
+        limit: 1
+      })
+    ).resolves.toMatchObject([{ id: '507f1f77bcf86cd799439019', score: 1 }]);
   });
 });

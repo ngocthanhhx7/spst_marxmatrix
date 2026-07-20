@@ -3,11 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { CitationFirewall } from './citation-firewall.js';
 import { LocalVectorRepository } from './local-vector-repository.js';
 import { RagService } from './rag.service.js';
-import { PERSONAL_COPILOT_COURSE_ID } from '@marxmatrix/contracts';
+import { PERSONAL_COPILOT_COURSE_ID, RAG_EMBEDDING_DIMENSION } from '@marxmatrix/contracts';
 
 const requesterId = '507f1f77bcf86cd799439011';
 const corpusOwnerId = '507f1f77bcf86cd799439012';
 const documentId = '507f1f77bcf86cd799439013';
+const unitVector = () => {
+  const vector = new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0);
+  vector[0] = 1;
+  return vector;
+};
 
 describe('RagService', () => {
   it('queries only the authenticated owner private Copilot scope', async () => {
@@ -28,10 +33,10 @@ describe('RagService', () => {
           pageEnd: 1,
           text: 'Riêng tư.',
           checksum: 'c'.repeat(64),
-          embedding: [1, 0]
+          embedding: unitVector()
         }
       ]),
-      { embed: async () => [1, 0] },
+      { embed: async () => unitVector() },
       {
         generate: async () => ({
           mode: 'query',
@@ -79,7 +84,7 @@ describe('RagService', () => {
         pageEnd: 2,
         text: 'Giá trị thặng dư là phần giá trị mới vượt quá giá trị sức lao động.',
         checksum: 'a'.repeat(64),
-        embedding: [1, 0]
+        embedding: unitVector()
       },
       {
         id: '507f1f77bcf86cd799439015',
@@ -91,17 +96,17 @@ describe('RagService', () => {
         pageEnd: 2,
         text: 'Nguồn cũ không được dùng.',
         checksum: 'b'.repeat(64),
-        embedding: [1, 0]
+        embedding: unitVector()
       }
     ]);
     let queryEmbeddingCalled = false;
     const service = new RagService(
       vectors,
       {
-        embed: async () => [1, 0],
+        embed: async () => unitVector(),
         embedQuery: async () => {
           queryEmbeddingCalled = true;
-          return [1, 0];
+          return unitVector();
         }
       },
       {

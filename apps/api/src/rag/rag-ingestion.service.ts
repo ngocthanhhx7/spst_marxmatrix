@@ -159,15 +159,24 @@ export class RagIngestionService {
   private async embedInOrder(texts: readonly string[]): Promise<number[][]> {
     const results = new Array<number[]>(texts.length);
     let nextIndex = 0;
+    let stopped = false;
+    let firstError: unknown;
     const run = async () => {
-      while (nextIndex < texts.length) {
+      while (!stopped && nextIndex < texts.length) {
         const index = nextIndex;
         nextIndex += 1;
         const text = texts[index];
-        if (text !== undefined) results[index] = await this.embedder.embed(text);
+        if (text === undefined) continue;
+        try {
+          results[index] = await this.embedder.embed(text);
+        } catch (error: unknown) {
+          if (!stopped) firstError = error;
+          stopped = true;
+        }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(4, texts.length) }, run));
+    await Promise.allSettled(Array.from({ length: Math.min(4, texts.length) }, run));
+    if (stopped) throw firstError;
     return results;
   }
 

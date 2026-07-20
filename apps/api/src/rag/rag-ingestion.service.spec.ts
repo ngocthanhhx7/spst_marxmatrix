@@ -140,6 +140,44 @@ describe('RagIngestionService', () => {
       )
     ).toEqual([1, 2, 3, 4, 5, 6]);
   });
+
+  it('stops claiming new chunks after the first failure and waits for active embeds to settle', async () => {
+    const document = fixtureDocument();
+    let rejectFirst: ((error: Error) => void) | undefined;
+    const activeResolvers: (() => void)[] = [];
+    const embed = vi.fn((text: string) => {
+      if (text === 'page 1')
+        return new Promise<number[]>((_resolve, reject) => {
+          rejectFirst = reject;
+        });
+      return new Promise<number[]>((resolve) => {
+        activeResolvers.push(() => resolve(new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0.5)));
+      });
+    });
+    const service = serviceWith({
+      document,
+      pages: Array.from({ length: 7 }, (_, index) => ({
+        pageNumber: index + 1,
+        text: `page ${index + 1}`
+      })),
+      embed
+    });
+
+    const indexing = service.reindexDocument(documentId);
+    await vi.waitFor(() => expect(embed).toHaveBeenCalledTimes(4));
+    rejectFirst?.(new Error('first embedding failed'));
+    let rejected = false;
+    void indexing.catch(() => {
+      rejected = true;
+    });
+    await Promise.resolve();
+    expect(rejected).toBe(false);
+    expect(embed).toHaveBeenCalledTimes(4);
+
+    activeResolvers.splice(0).forEach((resolve) => resolve());
+    await expect(indexing).rejects.toThrow('first embedding failed');
+    expect(embed).toHaveBeenCalledTimes(4);
+  });
 });
 
 function fixtureDocument() {

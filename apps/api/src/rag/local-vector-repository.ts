@@ -1,4 +1,4 @@
-import type { RagChunk, RetrievedChunk } from '@marxmatrix/contracts';
+import { RAG_EMBEDDING_DIMENSION, type RagChunk, type RetrievedChunk } from '@marxmatrix/contracts';
 
 export interface RagSearchFilter {
   ownerId: string;
@@ -80,8 +80,8 @@ export function validateFilter(filter: RagSearchFilter): void {
     )
   )
     throw new RangeError('A current parse-token filter is required.');
-  if (filter.queryVector.length === 0 || filter.queryVector.length > 256)
-    throw new RangeError('A bounded query vector is required.');
+  if (filter.queryVector.length !== RAG_EMBEDDING_DIMENSION)
+    throw new RangeError(`Query vectors must contain ${RAG_EMBEDDING_DIMENSION} dimensions.`);
   if (filter.queryVector.some((value) => !Number.isFinite(value)))
     throw new RangeError('Query vectors must be finite.');
   if (!Number.isInteger(filter.limit) || filter.limit < 1 || filter.limit > 10)
