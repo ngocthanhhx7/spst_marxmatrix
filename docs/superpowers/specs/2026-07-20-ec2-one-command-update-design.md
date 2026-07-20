@@ -16,19 +16,20 @@ The updater must never read, print, replace, copy, or commit either runtime envi
 2. Acquire a non-blocking `flock` lock so two updates cannot run concurrently.
 3. Verify the application directory, Git repository, API env, and web production env exist and are non-empty.
 4. Refuse to run when tracked files have local changes. Never reset or discard operator changes.
-5. Fetch the configured remote branch and require a fast-forward-only update.
+5. Verify the fixed `origin` URL, fetch its fixed `main` branch, reject a target commit that tracks either runtime environment path, and require a fast-forward-only update.
 6. Install workspace dependencies with `pnpm install --frozen-lockfile` as `ec2-user`.
-7. Install the current systemd unit files and the TLS Nginx template from the repository, reload systemd, and validate Nginx before reloading it.
-8. Delegate builds, service enablement/restarts, and local API health polling to the existing `activate.sh`.
-9. Verify local API health, web root availability through local Nginx with the correct Host header, worker/API service state, and print the deployed commit.
+7. Validate that pulled systemd units use the fixed unprivileged identity and exact Node entry points, and validate the expected Nginx names and certificate paths before installing anything.
+8. Build and activate inside the protected pre-fetch updater copy; never execute a newly pulled shell script as root.
+9. Back up both live Nginx files, stage the site and freshly generated Cloudflare configuration, and restore the previous files if validation, enablement, or reload fails.
+10. Verify local API health and readiness, the HTTPS web origin with local DNS resolution, all service states, and recheck API/worker state after five seconds before printing the deployed commit.
 
 ## Failure behavior
 
-The script uses `set -Eeuo pipefail` and exits non-zero at the first failed gate. An error trap reports the failed line without dumping environment values. The repository is never reset automatically. If dependency installation or build fails before service restart, existing processes keep running; the operator fixes the issue and reruns the same command.
+The script uses `set -Eeuo pipefail` and exits non-zero at the first failed gate. An error trap reports the current human-readable step and failed line without dumping commands or environment values. The repository is never reset automatically. Nginx configuration changes are transactional: failed validation, enablement, or reload restores and revalidates the previous files.
 
 ## Configuration and compatibility
 
-Defaults are `APP_DIR=/opt/marxmatrix`, `APP_USER=ec2-user`, `REMOTE=origin`, and `BRANCH=main`. These may be overridden as environment variables for maintenance. The script targets Amazon Linux 2023 and uses commands already installed by `bootstrap.sh`.
+The deployment identity is fixed: `/opt/marxmatrix`, `ec2-user`, `origin`, `main`, and `https://github.com/ngocthanhhx7/spst_marxmatrix.git`. Environment overrides are intentionally unsupported. The script targets Amazon Linux 2023 and uses commands already installed by `bootstrap.sh`.
 
 `bootstrap.sh` installs the updater as executable for new hosts. Existing hosts receive the file through the initial manual fast-forward deployment; every later deployment uses the updater itself.
 

@@ -21,12 +21,13 @@
     "test:integration": "pnpm -r test:integration",
     "pretest:e2e": "pnpm --filter @marxmatrix/contracts build",
     "test:e2e": "pnpm -r test:e2e",
+    "test:ops": "bash deploy/ec2/update.test.sh",
     "format": "prettier --check .",
     "seed": "pnpm --filter @marxmatrix/api seed",
     "clean": "node --input-type=module -e \"import { rm } from 'node:fs/promises'; await Promise.all(['apps/api/dist', 'apps/web/dist', 'packages/contracts/dist', 'packages/config/dist'].map((path) => rm(path, { force: true, recursive: true })));\"",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "verify": "pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run build"
+    "verify": "pnpm run test:ops && pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run build"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",
