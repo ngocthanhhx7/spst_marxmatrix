@@ -75,6 +75,7 @@ export function LandingPage() {
           <a href="#tools" onClick={handleAnchorNavigation}>
             Công cụ
           </a>
+          <Link to="/about">About</Link>
           <Link to="/arena">Capital Arena</Link>
           <a href="#resources" onClick={handleAnchorNavigation}>
             Tài liệu
@@ -379,6 +380,7 @@ export function LandingPage() {
           <a href="#method" onClick={handleAnchorNavigation}>
             Methodology
           </a>
+          <Link to="/about">About</Link>
           <a href="#analysis-title" onClick={handleAnchorNavigation}>
             Whitepapers
           </a>

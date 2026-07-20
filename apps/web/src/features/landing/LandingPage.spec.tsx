@@ -40,6 +40,7 @@ describe('LandingPage', () => {
       'href',
       '/arena'
     );
+    expect(within(header).getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
   });
 
   it('replaces public account actions with the authenticated user and workspace route', () => {
@@ -144,6 +145,7 @@ describe('LandingPage', () => {
 
     expect(within(footer).getByRole('navigation', { name: 'Product' })).toBeInTheDocument();
     expect(within(footer).getByRole('navigation', { name: 'Resources' })).toBeInTheDocument();
+    expect(within(footer).getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
     expect(within(footer).getByRole('navigation', { name: 'Legal' })).toBeInTheDocument();
     expect(within(footer).getByRole('navigation', { name: 'Method' })).toBeInTheDocument();
     expect(within(footer).getByRole('navigation', { name: 'System' })).toBeInTheDocument();

@@ -9,6 +9,9 @@ import { DashboardPage } from '../features/dashboard/DashboardPage.js';
 const LandingPage = lazy(async () =>
   import('../features/landing/LandingPage.js').then((module) => ({ default: module.LandingPage }))
 );
+const AboutPage = lazy(async () =>
+  import('../features/about/AboutPage.js').then((module) => ({ default: module.AboutPage }))
+);
 const LoginPage = lazy(async () =>
   import('../features/auth/LoginPage.js').then((module) => ({ default: module.LoginPage }))
 );
@@ -73,6 +76,14 @@ export function AppRouter() {
     <BrowserRouter>
       <Routes>
         <Route element={<SessionRestorationGate />}>
+          <Route
+            path="about"
+            element={
+              <LazyPage>
+                <AboutPage />
+              </LazyPage>
+            }
+          />
           <Route element={<AppShell />}>
             <Route
               index
