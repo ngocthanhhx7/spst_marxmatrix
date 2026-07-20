@@ -99,7 +99,7 @@ export function AboutPage() {
         </div>
       </header>
 
-      <main id="main-content">
+      <main id="main-content" tabIndex={-1}>
         <section className="about__hero about__frame" aria-labelledby="about-title">
           <div>
             <p className="about__eyebrow">01 / LUẬN ĐỀ</p>

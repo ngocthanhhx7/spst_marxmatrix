@@ -157,6 +157,7 @@ describe('AboutPage', () => {
     const footer = screen.getByRole('contentinfo');
     expect(header.parentElement).toBe(main.parentElement);
     expect(main.parentElement).toBe(footer.parentElement);
+    expect(main).toHaveAttribute('tabindex', '-1');
     for (const label of ['Product', 'Resources', 'Legal'])
       expect(within(footer).getByRole('navigation', { name: label })).toBeInTheDocument();
   }, 15_000);
@@ -173,6 +174,11 @@ describe('AboutPage', () => {
     expect(css).toMatch(
       /\.about__header > \.brand-mark,[\s\S]*?\.about__account-links > a \{[\s\S]*?min-height: 44px;/
     );
+    const footerBrandRule = css.match(/\.about__footer \.brand-mark \{([^}]*)\}/)?.[1] ?? '';
+    expect(footerBrandRule).toContain('display: inline-flex');
+    expect(footerBrandRule).toContain('min-width: 44px');
+    expect(footerBrandRule).toContain('min-height: 44px');
+    expect(footerBrandRule).toContain('align-items: center');
     expect(css).not.toContain('min-height: 40px');
   });
 });

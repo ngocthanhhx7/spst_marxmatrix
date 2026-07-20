@@ -62,8 +62,7 @@
   padding-inline: max(40px, calc((100% - 1200px) / 2));
   border-bottom: 1px solid var(--about-rule);
 }
-.about__header .brand-mark,
-.about__footer .brand-mark {
+.about__header .brand-mark {
   color: var(--about-cyan);
   text-decoration: none;
 }
@@ -528,7 +527,13 @@
 }
 .about__footer .brand-mark {
   display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: flex-start;
   margin-bottom: 12px;
+  color: var(--about-cyan);
+  text-decoration: none;
 }
 .about__footer .brand-mark svg {
   width: 22px;
