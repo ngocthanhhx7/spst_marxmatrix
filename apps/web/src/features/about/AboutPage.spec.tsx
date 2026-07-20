@@ -12,31 +12,49 @@ afterEach(() => {
 });
 
 describe('AboutPage', () => {
-  it('renders the public evidence dossier at /about with real product links', async () => {
+  it('renders the Vietnamese thesis and mantra from the approved story', async () => {
     window.history.replaceState({}, '', '/about');
     render(<App />);
 
     expect(
       await screen.findByRole(
         'heading',
-        { name: /evidence before conclusions/i },
+        { name: 'Chúng tôi không bắt đầu bằng một sản phẩm. Chúng tôi bắt đầu bằng một câu hỏi.' },
         { timeout: 10_000 }
       )
     ).toBeInTheDocument();
+    expect(screen.getByText('Không có bằng chứng, không có kết luận.')).toBeInTheDocument();
+  }, 15_000);
+
+  it('keeps the public header routes, active About state and guest actions', async () => {
+    window.history.replaceState({}, '', '/about');
+    render(<App />);
+
+    await screen.findByRole('banner');
     const header = screen.getByRole('banner');
-    expect(within(header).getByRole('link', { name: /about/i })).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
-    expect(within(header).getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
-    expect(screen.getByRole('link', { name: /open scanner/i })).toHaveAttribute(
+    expect(within(header).getByRole('link', { name: 'Phương pháp' })).toHaveAttribute(
       'href',
-      '/scanner/new'
+      '/#method'
     );
-    expect(screen.getByRole('link', { name: /open copilot/i })).toHaveAttribute('href', '/copilot');
-    expect(screen.getByRole('link', { name: /enter capital arena/i })).toHaveAttribute(
+    expect(within(header).getByRole('link', { name: 'Công cụ' })).toHaveAttribute(
+      'href',
+      '/#tools'
+    );
+    expect(within(header).getByRole('link', { name: 'Capital Arena' })).toHaveAttribute(
       'href',
       '/arena'
+    );
+    expect(within(header).getByRole('link', { name: 'Tài liệu' })).toHaveAttribute(
+      'href',
+      '/#resources'
+    );
+    const aboutLink = within(header).getByRole('link', { name: 'Giới thiệu' });
+    expect(aboutLink).toHaveAttribute('href', '/about');
+    expect(aboutLink).toHaveAttribute('aria-current', 'page');
+    expect(within(header).getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
+    expect(within(header).getByRole('link', { name: /Bắt đầu phân tích/i })).toHaveAttribute(
+      'href',
+      '/scanner/new'
     );
   }, 15_000);
 
@@ -58,7 +76,7 @@ describe('AboutPage', () => {
       'href',
       '/settings'
     );
-    expect(within(header).getByRole('link', { name: /workspace/i })).toHaveAttribute(
+    expect(within(header).getByRole('link', { name: /Vào workspace/i })).toHaveAttribute(
       'href',
       '/dashboard'
     );
@@ -71,9 +89,39 @@ describe('AboutPage', () => {
       'Trần Đức Minh HE190690',
       'Phạm Hải Trung HE190486',
       'Nguyễn Khắc Tráng HE186034',
-      'other collaborators'
+      'Các thành viên và cộng tác viên khác'
     ])
       expect(screen.getByText(member)).toBeInTheDocument();
+  }, 15_000);
+
+  it('documents the three history milestones and five-step evidence protocol', async () => {
+    window.history.replaceState({}, '', '/about');
+    render(<App />);
+
+    await screen.findByRole('heading', {
+      name: 'Chúng tôi không bắt đầu bằng một sản phẩm. Chúng tôi bắt đầu bằng một câu hỏi.'
+    });
+    for (const milestone of ['Lý thuyết / Thực tiễn', 'Evidence Matrix', 'Capital Arena'])
+      expect(screen.getByRole('heading', { name: milestone })).toBeInTheDocument();
+    const protocolSection = screen
+      .getByRole('heading', { name: 'Một nhận định chỉ hữu ích khi có đường dẫn đi cùng.' })
+      .closest('section');
+    expect(protocolSection).not.toBeNull();
+    for (const step of ['Nguồn', 'Trích xuất', 'Đối chiếu', 'Luận giải', 'Phản biện'])
+      expect(within(protocolSection as HTMLElement).getByText(step)).toBeInTheDocument();
+  }, 15_000);
+
+  it('renders header, main and full Product/Resources/Legal footer as sibling landmarks', async () => {
+    window.history.replaceState({}, '', '/about');
+    render(<App />);
+
+    const header = await screen.findByRole('banner');
+    const main = screen.getByRole('main');
+    const footer = screen.getByRole('contentinfo');
+    expect(header.parentElement).toBe(main.parentElement);
+    expect(main.parentElement).toBe(footer.parentElement);
+    for (const label of ['Product', 'Resources', 'Legal'])
+      expect(within(footer).getByRole('navigation', { name: label })).toBeInTheDocument();
   }, 15_000);
 
   it('keeps the desktop grid, accessible touch targets, mobile layout and motion fallback in CSS', () => {
@@ -84,5 +132,6 @@ describe('AboutPage', () => {
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('@media (max-width: 48rem)');
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(css).toContain(':focus-visible');
   });
 });

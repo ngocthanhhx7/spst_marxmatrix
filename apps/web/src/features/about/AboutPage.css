@@ -23,6 +23,11 @@
 .about a {
   color: inherit;
 }
+.about a:focus-visible,
+.about button:focus-visible {
+  outline: 2px solid var(--about-cyan);
+  outline-offset: 3px;
+}
 .about h1,
 .about h2,
 .about h3,
@@ -146,6 +151,13 @@
   color: var(--about-muted);
   font-size: 1.04rem;
   line-height: 1.65;
+}
+.about__mantra {
+  margin-bottom: 18px;
+  color: var(--about-amber);
+  font-family: var(--font-display, Georgia, serif);
+  font-size: clamp(1.3rem, 2.2vw, 1.8rem);
+  font-style: italic;
 }
 .about__actions {
   display: flex;
@@ -449,6 +461,17 @@
   color: var(--about-muted);
   line-height: 1.55;
 }
+.about__protocol li strong,
+.about__protocol li span {
+  display: block;
+}
+.about__protocol li strong {
+  margin-bottom: 6px;
+  color: var(--about-text);
+  font-family: var(--font-data, monospace);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
 .about__protocol li::before {
   display: inline-block;
   width: 30px;
@@ -594,7 +617,7 @@
     display: none;
   }
   .about__account-links .about__button {
-    min-height: 40px;
+    min-height: 44px;
     padding-inline: 12px;
     font-size: 0.55rem;
   }
