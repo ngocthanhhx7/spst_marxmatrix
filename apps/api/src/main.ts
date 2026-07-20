@@ -75,7 +75,8 @@ export async function createApplication(): Promise<INestApplication> {
 
 async function bootstrap(): Promise<void> {
   const app = await createApplication();
-  await app.listen(app.get(ConfigService).getOrThrow<number>('PORT'));
+  const config = app.get(ConfigService);
+  await app.listen(config.getOrThrow<number>('PORT'), config.getOrThrow<string>('API_HOST'));
 }
 
 const entrypoint = process.argv[1];

@@ -47,6 +47,7 @@ function hasSingleStandardLoopbackMongoHost(uri: string): boolean {
 const baseEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   ALLOW_SELF_HOSTED_PRODUCTION: booleanFromString.default(false),
+  API_HOST: z.string().min(1).default('127.0.0.1'),
   PORT: numericString.default(3000),
   FRONTEND_URL: z.url(),
   CORS_ORIGINS: z.string().min(1),
