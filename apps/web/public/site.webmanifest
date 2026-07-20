@@ -1,0 +1,17 @@
+{
+  "name": "MarxMatrix",
+  "short_name": "MarxMatrix",
+  "description": "Không gian học tập kinh tế chính trị số dựa trên bằng chứng.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c1014",
+  "theme_color": "#0c1014",
+  "icons": [
+    {
+      "src": "/brand/marxmatrix-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

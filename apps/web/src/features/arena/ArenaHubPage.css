@@ -1,0 +1,266 @@
+.arena-hub {
+  display: grid;
+  gap: clamp(2.5rem, 7vw, 6rem);
+  max-width: 78rem;
+  margin: 0 auto;
+  color: var(--color-text, var(--ink));
+}
+
+.arena-hub h1,
+.arena-hub h2,
+.arena-hub h3,
+.arena-hub p {
+  margin-top: 0;
+}
+
+.arena-hub h1,
+.arena-hub h2,
+.arena-hub h3 {
+  letter-spacing: -0.035em;
+}
+
+.arena-hub__masthead,
+.arena-hub__actions,
+.arena-hub__live-room,
+.arena-hub__replays li article {
+  border-top: 1px solid var(--color-rule, var(--border));
+}
+
+.arena-hub__masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(16rem, 0.72fr);
+  gap: clamp(2rem, 7vw, 7rem);
+  padding-top: 1rem;
+}
+
+.arena-hub__eyebrow,
+.arena-hub__index,
+.arena-hub__protocol span,
+.arena-hub__room-status,
+.arena-hub__room-metrics dt,
+.arena-hub__replay-number {
+  font-family: var(--font-data, ui-monospace, monospace);
+  font-size: 0.74rem;
+  letter-spacing: 0.09em;
+}
+
+.arena-hub__eyebrow,
+.arena-hub__index,
+.arena-hub__protocol span,
+.arena-hub__room-metrics dt,
+.arena-hub__replay-number {
+  color: var(--color-text-muted, var(--muted));
+}
+
+.arena-hub h1 {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: clamp(3rem, 8vw, 7rem);
+  line-height: 0.9;
+}
+.arena-hub h2 {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: clamp(2rem, 4vw, 3.7rem);
+  line-height: 0.98;
+}
+.arena-hub h3 {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.05;
+}
+.arena-hub__lead {
+  max-width: 39rem;
+  font-size: clamp(1.08rem, 1.6vw, 1.3rem);
+}
+
+.arena-hub__protocol {
+  align-self: end;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--color-rule, var(--border));
+}
+.arena-hub__protocol strong {
+  display: block;
+  margin: 0.8rem 0 0.4rem;
+}
+
+.arena-hub__actions {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-top: 1rem;
+}
+.arena-hub__actions h2 {
+  max-width: 37rem;
+  margin-bottom: 0;
+}
+.arena-hub__action-buttons,
+.arena-hub__panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.arena-hub button,
+.arena-hub__enter-link {
+  min-height: 2.8rem;
+  padding: 0.65rem 1rem;
+  color: var(--color-canvas, var(--paper));
+  background: var(--color-evidence, var(--accent));
+  border: 1px solid var(--color-evidence, var(--accent));
+  border-radius: 0;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.arena-hub__secondary-button {
+  color: var(--color-text, var(--ink)) !important;
+  background: transparent !important;
+  border-color: var(--color-rule, var(--border)) !important;
+}
+.arena-hub__text-button {
+  color: var(--color-text-muted, var(--muted)) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.arena-hub__panel {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.2fr);
+  gap: 2rem;
+  padding: 1.5rem 0;
+  border-top: 2px solid var(--color-evidence, var(--accent));
+  border-bottom: 1px solid var(--color-rule, var(--border));
+}
+.arena-hub__panel form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-content: start;
+}
+.arena-hub__panel label {
+  display: grid;
+  gap: 0.45rem;
+  font-weight: 700;
+}
+.arena-hub__panel input,
+.arena-hub__panel select {
+  width: 100%;
+  min-height: 2.7rem;
+  padding: 0.55rem 0.65rem;
+  color: inherit;
+  background: var(--color-surface-2, var(--surface));
+  border: 1px solid var(--color-rule, var(--border));
+  border-radius: 0;
+}
+.arena-hub__panel-actions {
+  grid-column: 1 / -1;
+  padding-top: 0.5rem;
+}
+.arena-hub__notice {
+  margin: -3.5rem 0 0;
+  padding: 0.8rem 1rem;
+  color: var(--color-evidence, var(--accent));
+  border-left: 2px solid currentColor;
+  background: var(--color-surface-1, var(--surface));
+}
+
+.arena-hub__section-heading {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  column-gap: 2rem;
+  align-items: baseline;
+}
+.arena-hub__section-heading > p:last-child {
+  grid-column: 2;
+  max-width: 32rem;
+}
+.arena-hub__live-room {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr) 13rem;
+  gap: 1.5rem 2rem;
+  padding: 1.5rem 0;
+}
+.arena-hub__room-status {
+  color: var(--color-evidence, var(--accent));
+}
+.arena-hub__room-status span {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.35rem;
+  background: currentColor;
+  border-radius: 50%;
+}
+.arena-hub__room-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-column: 2 / -1;
+  gap: 1rem;
+  margin: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-rule, var(--border));
+}
+.arena-hub__room-metrics dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.arena-hub__enter-link {
+  grid-column: 3;
+  align-self: end;
+  text-align: center;
+}
+
+.arena-hub__replays ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.arena-hub__replays li article {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 7rem 13rem;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 1.35rem 0;
+}
+.arena-hub__replays li:last-child article {
+  border-bottom: 1px solid var(--color-rule, var(--border));
+}
+.arena-hub__replays h3 {
+  margin-bottom: 0.35rem;
+}
+.arena-hub__replays time {
+  font-family: var(--font-data, ui-monospace, monospace);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .arena-hub__masthead,
+  .arena-hub__panel,
+  .arena-hub__live-room {
+    grid-template-columns: 1fr;
+  }
+  .arena-hub__actions {
+    display: grid;
+    align-items: start;
+  }
+  .arena-hub__section-heading {
+    grid-template-columns: 1fr;
+  }
+  .arena-hub__section-heading > p:last-child {
+    grid-column: auto;
+  }
+  .arena-hub__panel form {
+    grid-template-columns: 1fr;
+  }
+  .arena-hub__room-metrics,
+  .arena-hub__enter-link {
+    grid-column: auto;
+  }
+  .arena-hub__replays li article {
+    grid-template-columns: 2.5rem 1fr;
+  }
+  .arena-hub__replays time,
+  .arena-hub__replays a {
+    grid-column: 2;
+  }
+}

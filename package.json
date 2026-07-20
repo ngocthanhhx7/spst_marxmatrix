@@ -1,0 +1,40 @@
+{
+  "name": "marxmatrix",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.15.0",
+  "engines": {
+    "node": ">=22.22.0",
+    "pnpm": ">=11.15.0"
+  },
+  "scripts": {
+    "predev": "pnpm --filter @marxmatrix/contracts build",
+    "dev": "pnpm --parallel --filter @marxmatrix/api --filter @marxmatrix/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "pretypecheck": "pnpm --filter @marxmatrix/contracts build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm run test:unit && pnpm run test:integration && pnpm run test:e2e",
+    "pretest:unit": "pnpm --filter @marxmatrix/contracts build",
+    "test:unit": "pnpm -r test:unit",
+    "pretest:integration": "pnpm --filter @marxmatrix/contracts build",
+    "test:integration": "pnpm -r test:integration",
+    "pretest:e2e": "pnpm --filter @marxmatrix/contracts build",
+    "test:e2e": "pnpm -r test:e2e",
+    "format": "prettier --check .",
+    "seed": "pnpm --filter @marxmatrix/api seed",
+    "clean": "node --input-type=module -e \"import { rm } from 'node:fs/promises'; await Promise.all(['apps/api/dist', 'apps/web/dist', 'packages/contracts/dist', 'packages/config/dist'].map((path) => rm(path, { force: true, recursive: true })));\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm run test:unit && pnpm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@types/node": "22.20.1",
+    "eslint": "9.39.1",
+    "globals": "16.5.0",
+    "prettier": "3.6.2",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.64.0"
+  }
+}

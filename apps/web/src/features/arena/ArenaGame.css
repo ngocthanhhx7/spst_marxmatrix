@@ -1,0 +1,479 @@
+.arena-game,
+.arena-results,
+.arena-replay {
+  --color-action: var(--color-cta, var(--amber));
+  width: min(100% - 2rem, 88rem);
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 5rem) 0;
+  color: var(--color-text-primary);
+}
+.arena-game__header,
+.arena-results > header,
+.arena-replay > header {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 1.5rem;
+  align-items: end;
+  border-block: 1px solid var(--color-border);
+  padding: 1.25rem 0;
+}
+.arena-game h1,
+.arena-results h1,
+.arena-replay h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  margin: 0.25rem 0;
+}
+.arena-game__eyebrow,
+.arena-results header > p,
+.arena-replay header > p {
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+  letter-spacing: 0.12em;
+}
+.arena-game__connection {
+  max-width: 22rem;
+  border-left: 3px solid var(--color-warning);
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+.arena-game__connection--connected {
+  border-color: var(--color-accent);
+}
+.arena-game__connection--disconnected {
+  border-color: var(--color-danger);
+}
+.arena-game__timer {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  color: var(--color-action);
+}
+.arena-game__notice {
+  border: 1px solid var(--color-accent);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.arena-game__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.arena-game__layout > main {
+  padding-right: 2rem;
+  border-right: 1px solid var(--color-border);
+}
+.arena-game__section-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 2rem 0 1rem;
+}
+.arena-game__section-heading span {
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+}
+.arena-game__section-heading h2 {
+  margin: 0;
+  font-family: var(--font-display);
+}
+.arena-game__table-wrap {
+  overflow-x: auto;
+}
+.arena-game table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 46rem;
+}
+.arena-game th,
+.arena-game td {
+  padding: 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+.arena-game tbody th {
+  color: var(--color-text-primary);
+}
+.arena-game__decision {
+  padding: 1rem 0 2rem;
+}
+.arena-game__fields {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.arena-game__fields label {
+  display: grid;
+  gap: 0.5rem;
+}
+.arena-game__fields span {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+.arena-game__fields input {
+  width: 100%;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+  color: inherit;
+  padding: 0.75rem;
+}
+.arena-game__decision > button,
+.arena-results nav a,
+.arena-replay footer button,
+.arena-replay footer a {
+  display: inline-flex;
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--color-action);
+  background: var(--color-action);
+  color: var(--color-canvas);
+  font-weight: 700;
+  text-decoration: none;
+}
+.arena-game__decision > button:disabled {
+  opacity: 0.45;
+}
+.arena-game__events {
+  padding-left: 1.5rem;
+}
+.arena-game__events ol {
+  list-style: none;
+  padding: 0;
+}
+.arena-game__events li {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.5rem;
+  border-top: 1px solid var(--color-border);
+  padding: 0.8rem 0;
+}
+.arena-game__events strong {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+}
+.arena-game__events a {
+  color: var(--color-accent);
+}
+.arena-game__finished {
+  margin: 2rem 0;
+  padding: 2rem;
+  border-block: 1px solid var(--color-border);
+}
+.arena-results > ol {
+  list-style: none;
+  padding: 0;
+}
+.arena-results > ol > li {
+  display: grid;
+  grid-template-columns: 4rem minmax(12rem, 1fr) 2fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.arena-results > ol > li > strong {
+  font: 2rem var(--font-mono);
+  color: var(--color-accent);
+}
+.arena-results h2 {
+  font-family: var(--font-display);
+  margin: 0;
+}
+.arena-results dl {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+.arena-results dl div {
+  border-left: 1px solid var(--color-border);
+  padding-left: 1rem;
+}
+.arena-results dt {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+.arena-results dd {
+  margin: 0.35rem 0;
+  font-family: var(--font-mono);
+}
+.arena-results nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.arena-replay__layout {
+  display: grid;
+  grid-template-columns: 22rem minmax(0, 1fr);
+  min-height: 34rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.arena-replay aside {
+  border-right: 1px solid var(--color-border);
+  padding-right: 1rem;
+  max-height: 34rem;
+  overflow: auto;
+}
+.arena-replay aside ol {
+  list-style: none;
+  padding: 0;
+}
+.arena-replay aside button {
+  width: 100%;
+  padding: 0.8rem;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.arena-replay aside .is-current button {
+  color: var(--color-canvas);
+  background: var(--color-accent);
+}
+.arena-replay main {
+  padding: 2rem;
+}
+.arena-replay main > p {
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+}
+.arena-replay h2 {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+}
+.arena-replay dl {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+.arena-replay dt {
+  color: var(--color-text-muted);
+}
+.arena-replay dd {
+  margin: 0.25rem 0;
+}
+.arena-replay pre {
+  white-space: pre-wrap;
+  padding: 1rem;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border);
+}
+.arena-replay footer {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.arena-replay footer button,
+.arena-replay footer a {
+  margin-top: 1rem;
+}
+.arena-replay footer button:disabled {
+  opacity: 0.4;
+}
+@media (max-width: 800px) {
+  .arena-game__header,
+  .arena-results > header,
+  .arena-replay > header {
+    grid-template-columns: 1fr;
+  }
+  .arena-game__layout,
+  .arena-replay__layout {
+    grid-template-columns: 1fr;
+  }
+  .arena-game__layout > main,
+  .arena-replay aside {
+    padding-right: 0;
+    border-right: 0;
+  }
+  .arena-game__events {
+    padding-left: 0;
+  }
+  .arena-game__fields {
+    grid-template-columns: 1fr;
+  }
+  .arena-results > ol > li {
+    grid-template-columns: 3rem 1fr;
+  }
+  .arena-results dl {
+    grid-column: 1/-1;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .arena-replay aside {
+    max-height: 14rem;
+  }
+  .arena-replay main {
+    padding: 1.25rem 0;
+  }
+}
+
+/* Stitch screens 13–15: evidence is cyan; committed decisions are amber. */
+.arena-game__header,
+.arena-results > header,
+.arena-replay > header {
+  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-border));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-surface-1) 85%, transparent),
+    transparent
+  );
+}
+.arena-game__market {
+  padding-top: 1px;
+}
+.arena-game__metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.arena-game__metric {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 42%, var(--color-border));
+  background: var(--color-surface-1);
+  min-width: 0;
+}
+.arena-game__metric dt,
+.arena-results__section-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+.arena-game__metric dd {
+  margin: 0.45rem 0 0;
+  font: clamp(1.1rem, 2vw, 1.6rem) var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.arena-game__companies {
+  margin-top: 1.25rem;
+}
+.arena-game__decision {
+  border: 1px solid color-mix(in srgb, var(--color-action) 62%, var(--color-border));
+  padding: 1.25rem !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-action) 10%, var(--color-surface-1)),
+    var(--color-surface-1)
+  );
+}
+.arena-game__decision > button,
+.arena-results nav a,
+.arena-replay footer button,
+.arena-replay footer a {
+  border-radius: 0;
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--color-action) 32%, transparent);
+}
+.arena-results__podium {
+  padding: 2rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.arena-results__podium > h2,
+.arena-results__debrief h2 {
+  font-family: var(--font-display);
+  margin: 0.4rem 0 1rem;
+}
+.arena-results__podium-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.arena-results__podium-card {
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-1);
+  min-width: 0;
+}
+.arena-results__podium-card--1 {
+  border-color: var(--color-action);
+  background: color-mix(in srgb, var(--color-action) 12%, var(--color-surface-1));
+}
+.arena-results__podium-card span {
+  font: 1rem var(--font-mono);
+  color: var(--color-accent);
+}
+.arena-results__podium-card h3 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  margin: 0.7rem 0;
+}
+.arena-results__podium-card p {
+  font-family: var(--font-mono);
+  margin: 0;
+  color: var(--color-action);
+}
+.arena-results__debrief {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) 2fr;
+  gap: 2rem;
+  padding: 2rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.arena-results__debrief > p {
+  margin: 0;
+  max-width: 58ch;
+  line-height: 1.65;
+  color: var(--color-text-muted);
+}
+.arena-replay__timeline {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-accent);
+}
+.arena-replay__timeline label {
+  white-space: nowrap;
+}
+.arena-replay__timeline input {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+.arena-replay aside .is-current button {
+  background: var(--color-accent);
+  color: var(--color-canvas);
+  box-shadow: inset 4px 0 var(--color-action);
+}
+.arena-replay main {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-accent) 5%, transparent),
+    transparent
+  );
+}
+.arena-replay pre {
+  max-width: 100%;
+  overflow: auto;
+}
+@media (max-width: 800px) {
+  .arena-game__metric-grid,
+  .arena-results__podium-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .arena-results__debrief {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  .arena-replay__timeline {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  .arena-game__decision {
+    padding: 1rem !important;
+  }
+}
+
+.arena-game__events a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+.arena-replay__timeline input {
+  min-height: 44px;
+}

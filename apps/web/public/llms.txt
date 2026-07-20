@@ -1,0 +1,13 @@
+# MarxMatrix
+
+MarxMatrix is a Vietnamese evidence-led learning workspace for examining the political economy of technology. Calculations are deterministic, extracted evidence requires human review, and Copilot claims must retain page-level citations.
+
+## Product surfaces
+
+- [Method and limits](/#method)
+- [Scanner](/scanner)
+- [Capital Arena](/arena)
+- [Copilot](/copilot)
+- [Account access](/login)
+
+Synthetic examples on the public landing page are educational fixtures, not financial advice or replacements for course materials.

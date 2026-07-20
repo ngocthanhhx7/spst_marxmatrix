@@ -1,0 +1,231 @@
+.extraction-workspace {
+  max-width: 78rem;
+  margin-inline: auto;
+  padding: clamp(var(--space-4), 4vw, var(--space-8)) 0;
+}
+
+.extraction-workspace > .eyebrow {
+  margin-bottom: var(--space-2);
+}
+
+.extraction-workspace > h1 {
+  max-width: 13ch;
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(2.35rem, 5vw, 4rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+.extraction-workspace > h1 + p {
+  max-width: 44rem;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+}
+
+.extraction-workspace > .text-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+
+.extraction-progress {
+  max-width: 34rem;
+  margin: 2rem 0;
+  padding: 1rem 0;
+  border-top: 2px solid var(--color-verified, var(--accent));
+  border-bottom: 1px solid var(--color-rule, var(--border));
+}
+
+.extraction-layout {
+  align-items: start;
+}
+
+.extraction-workspace .document-upload,
+.extraction-workspace .extraction-result {
+  border-color: var(--color-rule);
+  background: var(--color-surface-1);
+}
+
+.extraction-workspace .document-upload {
+  border-top: 3px solid var(--color-assumption);
+}
+
+.extraction-workspace .document-upload label,
+.extraction-trigger label {
+  color: var(--color-text-muted);
+  font-family: var(--font-data);
+  font-size: 0.73rem;
+  letter-spacing: 0.04em;
+}
+
+.extraction-workspace input,
+.extraction-workspace select {
+  width: 100%;
+  min-height: 2.75rem;
+  color: var(--color-text);
+  background: var(--color-canvas);
+  border-color: var(--color-rule);
+  border-radius: 0;
+}
+
+.extraction-workspace input[type='file'] {
+  padding: var(--space-2);
+}
+
+.extraction-workspace .document-choice {
+  min-height: 7rem;
+  border-radius: 0;
+}
+
+.extraction-workspace .document-choice.is-selected {
+  border-color: var(--color-evidence);
+  box-shadow: inset 4px 0 var(--color-evidence);
+}
+
+.extraction-workspace .extraction-facts li {
+  border-top: 2px solid var(--color-evidence);
+}
+
+.extraction-workspace .extraction-facts blockquote {
+  border-left-color: var(--color-evidence);
+}
+
+.extraction-progress > p:first-child,
+.extraction-progress li span {
+  font-family: var(--font-data, ui-monospace, monospace);
+  font-size: 0.73rem;
+  letter-spacing: 0.08em;
+}
+
+.extraction-progress ol {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extraction-progress li {
+  display: flex;
+  gap: 0.6rem;
+  color: var(--color-text-muted, var(--muted));
+}
+
+.extraction-progress li[data-active='true'] {
+  color: var(--color-text, var(--ink));
+}
+
+.extraction-progress li[data-active='true'] span {
+  color: var(--color-verified, var(--accent));
+}
+
+.extraction-progress > p:last-child {
+  margin: 0;
+  color: var(--color-text-muted, var(--muted));
+  font-size: 0.9rem;
+}
+
+.extraction-queued {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border-left: 2px solid var(--color-verified, var(--accent));
+  background: var(--color-surface-1, var(--surface));
+}
+
+.extraction-queued p {
+  margin: 0;
+}
+
+.extraction-review-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .extraction-queued {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .extraction-workspace .document-upload {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Figma Screen 08: PDF evidence workspace and explicit pipeline. */
+.extraction-workspace {
+  width: min(100% - 2rem, 76rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: 1.5rem;
+}
+.extraction-workspace > h1,
+.extraction-workspace > .eyebrow,
+.extraction-workspace > p,
+.extraction-workspace > .text-link {
+  grid-column: 1/-1;
+}
+.extraction-workspace > h1 {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 6vw, 5rem);
+  margin: 0;
+}
+.extraction-progress {
+  grid-column: 2;
+  grid-row: 1 / span 6;
+  border: 1px solid color-mix(in srgb, var(--color-evidence) 45%, var(--color-rule));
+  border-top: 3px solid var(--color-evidence);
+  padding: 1rem;
+  background: var(--color-surface-1);
+}
+.extraction-progress li {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+.document-upload {
+  grid-column: 1;
+  border: 1px dashed color-mix(in srgb, var(--color-evidence) 60%, var(--color-rule));
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--color-evidence) 5%, transparent);
+}
+.document-upload button {
+  min-height: 44px;
+  background: var(--color-cta, var(--amber));
+  border-color: var(--color-cta, var(--amber));
+}
+.extraction-layout {
+  grid-column: 1/-1;
+}
+.extraction-workspace .page-state {
+  grid-column: 1;
+}
+.extraction-result {
+  min-width: 0;
+}
+.extraction-workspace .status-badge {
+  font-family: var(--font-data);
+}
+@media (max-width: 760px) {
+  .extraction-workspace {
+    grid-template-columns: 1fr;
+  }
+  .extraction-progress,
+  .document-upload,
+  .extraction-workspace .page-state {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .extraction-progress {
+    order: 3;
+  }
+  .document-upload {
+    order: 2;
+  }
+}

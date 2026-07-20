@@ -1,0 +1,27 @@
+{
+  "name": "@marxmatrix/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run src",
+    "test:integration": "vitest run --passWithNoTests --dir test/integration",
+    "test:e2e": "vitest run --passWithNoTests --dir test/e2e"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "vitest": "4.1.10"
+  }
+}

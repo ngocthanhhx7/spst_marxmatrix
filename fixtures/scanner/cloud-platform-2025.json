@@ -1,0 +1,81 @@
+{
+  "title": "Cloud Platform 2025",
+  "assumptions": {
+    "revenueAdjustment": 1,
+    "includeSurplusProxy": false,
+    "contractorClassification": "constant_capital",
+    "includeStockCompensation": false,
+    "includeNeedsReview": false,
+    "notes": "Synthetic accounting proxies for the MarxMatrix Scanner demo."
+  },
+  "facts": [
+    {
+      "key": "revenue",
+      "label": "Platform revenue",
+      "value": 1000,
+      "currency": "USD",
+      "scale": "millions",
+      "reportingPeriod": "FY2025",
+      "classification": "revenue",
+      "extractionMode": "manual",
+      "sourcePage": null,
+      "sourceChunkId": null,
+      "evidenceText": "Synthetic manual demo input.",
+      "classificationReason": "Revenue proxy selected by the learner.",
+      "reviewStatus": "approved",
+      "sensitivityCategory": "standard",
+      "sensitivityClassification": null
+    },
+    {
+      "key": "cloud-infrastructure",
+      "label": "Cloud infrastructure and depreciation",
+      "value": 400,
+      "currency": "USD",
+      "scale": "millions",
+      "reportingPeriod": "FY2025",
+      "classification": "constant_capital",
+      "extractionMode": "manual",
+      "sourcePage": null,
+      "sourceChunkId": null,
+      "evidenceText": "Synthetic manual demo input.",
+      "classificationReason": "Infrastructure is an accounting proxy for c.",
+      "reviewStatus": "approved",
+      "sensitivityCategory": "standard",
+      "sensitivityClassification": null
+    },
+    {
+      "key": "labour-cost",
+      "label": "Labour cost",
+      "value": 200,
+      "currency": "USD",
+      "scale": "millions",
+      "reportingPeriod": "FY2025",
+      "classification": "variable_capital",
+      "extractionMode": "manual",
+      "sourcePage": null,
+      "sourceChunkId": null,
+      "evidenceText": "Synthetic manual demo input.",
+      "classificationReason": "Labour cost is an accounting proxy for v.",
+      "reviewStatus": "approved",
+      "sensitivityCategory": "standard",
+      "sensitivityClassification": null
+    },
+    {
+      "key": "surplus-proxy",
+      "label": "Optional surplus proxy",
+      "value": 100,
+      "currency": "USD",
+      "scale": "millions",
+      "reportingPeriod": "FY2025",
+      "classification": "surplus_proxy",
+      "extractionMode": "manual",
+      "sourcePage": null,
+      "sourceChunkId": null,
+      "evidenceText": "Synthetic manual demo input.",
+      "classificationReason": "Optional learner-selected accounting proxy for sensitivity analysis.",
+      "reviewStatus": "approved",
+      "sensitivityCategory": "standard",
+      "sensitivityClassification": null
+    }
+  ]
+}

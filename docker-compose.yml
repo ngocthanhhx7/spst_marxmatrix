@@ -1,0 +1,16 @@
+services:
+  mongo:
+    image: mongo:8.0
+    ports:
+      - '127.0.0.1:27017:27017'
+    volumes:
+      - marxmatrix-mongo-data:/data/db
+    healthcheck:
+      test: ['CMD-SHELL', 'mongosh --quiet --eval "db.adminCommand(\"ping\").ok"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  marxmatrix-mongo-data:
