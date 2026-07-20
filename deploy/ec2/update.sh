@@ -13,7 +13,7 @@ on_error() {
 verify_clean_worktree() {
   local repository="$1"
   local status
-  status="$(git -C "${repository}" status --porcelain --untracked-files=no)"
+  status="$(run_as_app git -C "${repository}" status --porcelain --untracked-files=no)"
   if [[ -n "${status}" ]]; then
     echo "Tracked files in ${repository} have local changes; refusing to update." >&2
     return 1
@@ -70,19 +70,19 @@ main() {
   reexec_from_temporary_runner
   trap cleanup_runner EXIT
 
-  if [[ ! -d "${APP_DIR}" ]] || ! git -C "${APP_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  app_home="$(getent passwd "${APP_USER}" | cut -d: -f6)"
+  if [[ -z "${app_home}" ]]; then
+    echo "Application user ${APP_USER} does not exist." >&2
+    exit 1
+  fi
+
+  if [[ ! -d "${APP_DIR}" ]] || ! run_as_app git -C "${APP_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "${APP_DIR} is not a Git repository; refusing to update." >&2
     exit 1
   fi
 
   require_environment_files
   verify_clean_worktree "${APP_DIR}"
-
-  app_home="$(getent passwd "${APP_USER}" | cut -d: -f6)"
-  if [[ -z "${app_home}" ]]; then
-    echo "Application user ${APP_USER} does not exist." >&2
-    exit 1
-  fi
 
   local old_commit new_commit
   old_commit="$(run_as_app git -C "${APP_DIR}" rev-parse HEAD)"
@@ -97,7 +97,7 @@ main() {
   "${APP_DIR}/deploy/ec2/refresh-cloudflare-ips.sh" >/dev/null 2>&1
   systemctl daemon-reload
   nginx -t >/dev/null 2>&1
-  systemctl enable nginx >/dev/null 2>&1
+  systemctl enable --now nginx >/dev/null 2>&1
 
   "${APP_DIR}/deploy/ec2/activate.sh" >/dev/null 2>&1
 
