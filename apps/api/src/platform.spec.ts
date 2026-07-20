@@ -111,6 +111,13 @@ describe('API platform', () => {
     expect(runner).toContain('taskkill');
   });
 
+  it('runs the queue worker alongside the API during local development', async () => {
+    const runner = await readFile(new URL('../scripts/dev-api.mjs', import.meta.url), 'utf8');
+
+    expect(runner).toContain("'dist/worker.js'");
+    expect(runner).toContain('await stopWorker()');
+  });
+
   it('permits demo configuration without a Gemini key and rejects unsafe production configuration', () => {
     expect(parseEnvironment(demoEnvironment).GEMINI_API_KEY).toBeUndefined();
     expect(() =>

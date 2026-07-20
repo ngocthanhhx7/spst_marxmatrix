@@ -286,6 +286,62 @@ describe('DocumentsService', () => {
     expect(operations).toEqual(['failed']);
   });
 
+  it('requeues a failed parse job when the owner uploads the same PDF again', async () => {
+    const requeued: string[] = [];
+    const document = {
+      _id: { toString: () => '507f1f77bcf86cd799439011' },
+      title: 'Report',
+      type: 'financial_report',
+      status: 'failed',
+      deletionState: 'active',
+      mimeType: 'application/pdf',
+      originalFileName: 'report.pdf',
+      byteSize: 15,
+      checksum: 'dc129080e9f355436bf308f3357c4364b6d40b9b9c28f74af0af82bf112f0e2c',
+      pageCount: 0,
+      errorCode: 'PDF_PARSE_FAILED' as string | null,
+      errorMessage: 'The PDF could not be parsed.' as string | null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    const service = new DocumentsService(
+      {
+        findOne: () => ({ select: async () => document }),
+        updateOne: async () => {
+          document.status = 'uploaded';
+          document.errorCode = null;
+          document.errorMessage = null;
+          return { matchedCount: 1 };
+        }
+      } as never,
+      {} as never,
+      {} as never,
+      {
+        enqueue: async () => ({
+          _id: { toString: () => '507f1f77bcf86cd799439014' },
+          status: 'failed'
+        }),
+        requeueFailed: async (id: string) => requeued.push(id)
+      } as never,
+      {
+        getOrThrow: (key: string) => (key === 'DOCUMENT_MAX_SIZE_MB' ? 1 : 'application/pdf')
+      } as never
+    );
+
+    await expect(
+      service.upload(
+        '507f1f77bcf86cd799439012',
+        { title: 'Report', type: 'financial_report' },
+        {
+          buffer: Buffer.from('%PDF-1.7\nreport'),
+          originalname: 'report.pdf',
+          mimetype: 'application/pdf'
+        }
+      )
+    ).resolves.toMatchObject({ status: 'uploaded', errorCode: null, errorMessage: null });
+    expect(requeued).toEqual(['507f1f77bcf86cd799439014']);
+  });
+
   it('never compensates bytes reused by a concurrent checksum winner', async () => {
     const operations: string[] = [];
     const duplicate = Object.assign(new Error('duplicate'), { code: 11000 });
@@ -359,7 +415,7 @@ describe('DocumentsService', () => {
         store: async () => ({ id: fileId, created: true }),
         remove: async () => operations.push('remove')
       } as never,
-      { enqueue: async () => undefined } as never,
+      { enqueue: async () => ({ status: 'queued' }) } as never,
       {
         getOrThrow: (key: string) => (key === 'DOCUMENT_MAX_SIZE_MB' ? 1 : 'application/pdf')
       } as never

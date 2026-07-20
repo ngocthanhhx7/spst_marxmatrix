@@ -425,11 +425,27 @@ export class DocumentsService {
   private async enqueueOrMarkFailed(document: StoredDocument): Promise<DocumentMetadata> {
     if (['parsed', 'embedding', 'ready'].includes(document.status)) return this.metadata(document);
     try {
-      await this.jobs.enqueue({
+      const job = await this.jobs.enqueue({
         type: 'parse_pdf',
         payload: { documentId: document._id.toString() },
         idempotencyKey: `parse_pdf:${document._id.toString()}`
       });
+      let processingResumed = job.status === 'queued' || job.status === 'leased';
+      if (document.status === 'failed' && job.status === 'failed') {
+        await this.jobs.requeueFailed(job._id.toString());
+        processingResumed = true;
+      }
+      if (document.status === 'failed' && processingResumed) {
+        const recovered = await this.documents.updateOne(
+          { _id: document._id, status: 'failed' },
+          { $set: { status: 'uploaded', errorCode: null, errorMessage: null } }
+        );
+        if (recovered.matchedCount !== 0) {
+          document.status = 'uploaded';
+          document.errorCode = null;
+          document.errorMessage = null;
+        }
+      }
       if (document.status === 'failed' && document.errorCode === 'JOB_ENQUEUE_FAILED') {
         await this.documents.updateOne(
           { _id: document._id, status: 'failed', errorCode: 'JOB_ENQUEUE_FAILED' },

@@ -9,7 +9,7 @@ export class DocumentPageRecord {
   documentId!: Types.ObjectId;
   @Prop({ type: String, required: true, select: false }) parseToken!: string;
   @Prop({ required: true, min: 1 }) pageNumber!: number;
-  @Prop({ required: true, default: '' }) text!: string;
+  @Prop({ type: String, default: '' }) text!: string;
   @Prop({ type: [MongooseSchema.Types.ObjectId], required: true, default: [] })
   sourceChunkIds!: Types.ObjectId[];
   createdAt!: Date;

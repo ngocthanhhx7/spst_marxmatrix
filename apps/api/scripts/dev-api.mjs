@@ -9,6 +9,7 @@ const compilerArgs = isWindows
   ? ['/d', '/s', '/c', 'pnpm exec nest build --watch']
   : ['exec', 'nest', 'build', '--watch'];
 let server;
+let worker;
 let restartTimer;
 let restartInProgress = false;
 let restartPending = false;
@@ -28,6 +29,27 @@ function stopServer() {
     const onExit = () => {
       current.removeListener('exit', onExit);
       if (server === current) server = undefined;
+      resolve();
+    };
+    current.once('exit', onExit);
+    terminateServerProcess(current);
+    setTimeout(() => {
+      if (current.exitCode === null && current.signalCode === null)
+        terminateServerProcess(current, true);
+    }, 2_000).unref();
+  });
+}
+
+function stopWorker() {
+  const current = worker;
+  if (current === undefined || current.exitCode !== null || current.signalCode !== null) {
+    if (worker === current) worker = undefined;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const onExit = () => {
+      current.removeListener('exit', onExit);
+      if (worker === current) worker = undefined;
       resolve();
     };
     current.once('exit', onExit);
@@ -70,6 +92,22 @@ function startServer() {
   });
 }
 
+function startWorker() {
+  if (shuttingDown) return;
+  log('starting queue worker from dist/worker.js');
+  worker = spawn(process.execPath, ['--enable-source-maps', 'dist/worker.js'], {
+    cwd: apiRoot,
+    env: process.env,
+    stdio: 'inherit'
+  });
+  worker.on('exit', (code, signal) => {
+    if (!shuttingDown && code !== 0 && signal === null) {
+      log(`worker exited with code ${code}`);
+      setTimeout(() => void restartServer(), 300).unref();
+    }
+  });
+}
+
 async function restartServer() {
   restartPending = true;
   if (restartInProgress) return;
@@ -77,8 +115,10 @@ async function restartServer() {
   try {
     while (restartPending && !shuttingDown) {
       restartPending = false;
+      await stopWorker();
       await stopServer();
       startServer();
+      startWorker();
     }
   } finally {
     restartInProgress = false;
@@ -110,7 +150,7 @@ compiler.on('exit', (code, signal) => {
   if (!shuttingDown) {
     log(`compiler exited${signal === null ? ` with code ${code}` : ` from ${signal}`}`);
   }
-  void stopServer();
+  void Promise.all([stopServer(), stopWorker()]);
   process.exitCode = code ?? 1;
 });
 
@@ -118,7 +158,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     shuttingDown = true;
     clearTimeout(restartTimer);
-    stopServer();
+    void Promise.all([stopServer(), stopWorker()]);
     compiler.kill();
   });
 }
