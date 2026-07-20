@@ -122,11 +122,34 @@ describe('API platform', () => {
       })
     ).toThrow(/GEMINI_API_KEY/);
   });
-  it('rejects self-hosted production configuration without the explicit opt-in', () => {
-    expect(() => parseEnvironment(selfHostedProductionEnvironment)).toThrow(
-      /MONGODB_URI|RAG_VECTOR_PROVIDER/
-    );
-  });
+  it.each([
+    [
+      'absent',
+      {},
+      { MONGODB_URI: 'mongodb+srv://database.example/marxmatrix' },
+      'RAG_VECTOR_PROVIDER'
+    ],
+    [
+      'explicitly false',
+      { ALLOW_SELF_HOSTED_PRODUCTION: 'false' },
+      { MONGODB_URI: 'mongodb+srv://database.example/marxmatrix' },
+      'RAG_VECTOR_PROVIDER'
+    ],
+    ['absent', {}, { RAG_VECTOR_PROVIDER: 'atlas' }, 'MONGODB_URI'],
+    [
+      'explicitly false',
+      { ALLOW_SELF_HOSTED_PRODUCTION: 'false' },
+      { RAG_VECTOR_PROVIDER: 'atlas' },
+      'MONGODB_URI'
+    ]
+  ])(
+    'keeps the %s self-hosted production restriction for %s',
+    (_flagMode, flag, override, expectedField) => {
+      expect(() =>
+        parseEnvironment({ ...selfHostedProductionEnvironment, ...flag, ...override })
+      ).toThrow(new RegExp(expectedField));
+    }
+  );
   it('permits explicitly opted-in self-hosted production configuration', () => {
     const environment = parseEnvironment({
       ...selfHostedProductionEnvironment,
@@ -138,22 +161,30 @@ describe('API platform', () => {
       RAG_VECTOR_PROVIDER: 'local'
     });
   });
-  it('keeps cookie and CORS production safeguards with self-hosted opt-in', () => {
-    expect(() =>
-      parseEnvironment({
-        ...selfHostedProductionEnvironment,
-        ALLOW_SELF_HOSTED_PRODUCTION: 'true',
-        COOKIE_SECURE: 'false'
-      })
-    ).toThrow(/COOKIE_SECURE/);
-    expect(() =>
-      parseEnvironment({
-        ...selfHostedProductionEnvironment,
-        ALLOW_SELF_HOSTED_PRODUCTION: 'true',
-        CORS_ORIGINS: '*'
-      })
-    ).toThrow(/CORS_ORIGINS/);
-  });
+  it.each([
+    ['DEMO_MODE', { DEMO_MODE: 'true' }],
+    ['AI_PROVIDER', { AI_PROVIDER: 'mock' }],
+    ['GEMINI_API_KEY', { GEMINI_API_KEY: '' }],
+    ['COOKIE_SECURE', { COOKIE_SECURE: 'false' }],
+    ['CORS_ORIGINS', { CORS_ORIGINS: '*' }],
+    ['JWT_ACCESS_SECRET', { JWT_ACCESS_SECRET: 'short-secret' }],
+    ['JWT_REFRESH_SECRET', { JWT_REFRESH_SECRET: 'short-secret' }],
+    [
+      'AUTH_COOKIE_SAME_SITE',
+      { AUTH_COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'false' }
+    ]
+  ])(
+    'keeps the %s production safeguard with self-hosted opt-in',
+    (expectedField, override) => {
+      expect(() =>
+        parseEnvironment({
+          ...selfHostedProductionEnvironment,
+          ALLOW_SELF_HOSTED_PRODUCTION: 'true',
+          ...override
+        })
+      ).toThrow(new RegExp(expectedField));
+    }
+  );
   it('treats a copied blank Gemini key as absent in demo mode', () => {
     expect(
       parseEnvironment({ ...demoEnvironment, GEMINI_API_KEY: '   ' }).GEMINI_API_KEY
@@ -174,30 +205,18 @@ describe('API platform', () => {
     );
   });
 
-  it.each([
-    ['DEMO_MODE', { DEMO_MODE: 'true' }],
-    ['AI_PROVIDER', { AI_PROVIDER: 'mock' }],
-    ['MONGODB_URI', { MONGODB_URI: 'mongodb://localhost:27017' }],
-    ['MONGODB_URI', { MONGODB_URI: 'mongodb://[::1]:27017' }],
-    ['JWT_ACCESS_SECRET', { JWT_ACCESS_SECRET: 'local-access-secret-change-me' }],
-    ['JWT_REFRESH_SECRET', { JWT_REFRESH_SECRET: 'change-me-please-replace-this-secret' }],
-    ['JWT_ACCESS_SECRET', { JWT_ACCESS_SECRET: 'short-secret' }]
-  ])('rejects unsafe production %s with a named issue', (field, override) => {
-    expect(() =>
-      parseEnvironment({
-        ...demoEnvironment,
-        NODE_ENV: 'production',
-        DEMO_MODE: 'false',
-        AI_PROVIDER: 'gemini',
-        GEMINI_API_KEY: 'gemini-production-key',
-        COOKIE_SECURE: 'true',
-        MONGODB_URI: 'mongodb+srv://database.example/marxmatrix',
-        JWT_ACCESS_SECRET: 'an-access-secret-that-is-long-random-and-not-a-placeholder',
-        JWT_REFRESH_SECRET: 'a-refresh-secret-that-is-long-random-and-not-a-placeholder',
-        ...override
-      })
-    ).toThrow(new RegExp(field));
-  });
+  it.each(['mongodb://localhost:27017', 'mongodb://[::1]:27017'])(
+    'rejects local MongoDB URI %s in production',
+    (mongodbUri) => {
+      expect(() =>
+        parseEnvironment({
+          ...selfHostedProductionEnvironment,
+          RAG_VECTOR_PROVIDER: 'atlas',
+          MONGODB_URI: mongodbUri
+        })
+      ).toThrow(/MONGODB_URI/);
+    }
+  );
 
   it('serializes domain and unexpected errors without exposing a production stack', () => {
     const filter = new AllExceptionsFilter({ isProduction: true });
