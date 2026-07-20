@@ -17,13 +17,14 @@ The updater must never read, print, replace, copy, or commit either runtime envi
 3. Verify the application directory, Git repository, API env, and web production env exist and are non-empty.
 4. Refuse to run when tracked files have local changes. Never reset or discard operator changes.
 5. Verify the fixed `origin` URL, fetch its fixed `main` branch, reject a target commit that tracks either runtime environment path, and require a fast-forward-only update.
-6. Install workspace dependencies with `pnpm install --frozen-lockfile` as `ec2-user`.
-7. Render the exact systemd and TLS Nginx templates embedded in the protected pre-fetch updater copy into a root-only temporary directory. Never consume privileged configuration from the newly pulled worktree.
-8. Validate both Cloudflare endpoint responses as non-empty IPv4/IPv6 CIDR lists before rendering the real-IP configuration.
-9. Install both systemd units transactionally, restoring both previous files and reloading systemd if either install or daemon reload fails.
-10. Back up both live Nginx files, stage the embedded site and freshly generated Cloudflare configuration, and restore the previous files if validation, enablement, or reload fails.
-11. Build and activate inside the protected pre-fetch updater copy; never execute a newly pulled shell script as root.
-12. Verify local API health and readiness, the HTTPS web origin with local DNS resolution, all service states, and recheck API/worker state after five seconds before printing the deployed commit.
+6. If the updater blob changed, verify the worktree executable against the fetched commit and internally re-exec a new mode-700 protected runner with the inherited lock. The post-fetch pass rechecks commit alignment and skips fetch/merge so the transition cannot loop.
+7. Install workspace dependencies with `pnpm install --frozen-lockfile` as `ec2-user`.
+8. Render the exact systemd and TLS Nginx templates embedded in the active protected updater copy into a root-only temporary directory. Never consume privileged configuration directly from the newly pulled worktree.
+9. Validate both Cloudflare endpoint responses as non-empty IPv4/IPv6 CIDR lists before rendering the real-IP configuration.
+10. Install both systemd units transactionally, restoring both previous files and reloading systemd if either install or daemon reload fails.
+11. Back up both live Nginx files, stage the embedded site and freshly generated Cloudflare configuration, and restore the previous files if validation, enablement, or reload fails.
+12. Build and activate inside the protected updater copy; never execute an unverified pulled shell script as root.
+13. Verify local API health and readiness, the HTTPS web origin with local DNS resolution, all service states, and recheck API/worker state after five seconds before printing the deployed commit.
 
 ## Failure behavior
 
@@ -35,7 +36,7 @@ The deployment identity is fixed: `/opt/marxmatrix`, `ec2-user`, `origin`, `main
 
 `bootstrap.sh` installs the updater as executable for new hosts. Existing hosts receive the file through the initial manual fast-forward deployment; every later deployment uses the updater itself.
 
-Because each run deliberately continues from its protected pre-fetch copy, privileged template changes fetched during an update take effect on the next invocation. The update command is idempotent, so rerunning it immediately is safe and is the intended way to apply such a template change.
+When `deploy/ec2/update.sh` changes, one external command performs a verified post-fetch protected pass. The worktree `HEAD`, `FETCH_HEAD`, and `origin/main` must agree; the updater must be a regular executable whose blob matches the new commit; and the old commit must be its ancestor. The inherited lock remains held throughout both passes, and privileged template changes apply during that same invocation.
 
 ## Verification
 

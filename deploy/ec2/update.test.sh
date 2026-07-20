@@ -20,7 +20,8 @@ run_as_app() { "$@"; }
 
 for function_name in render_api_unit render_worker_unit render_nginx_config \
   install_units_atomically install_nginx_atomically generate_cloudflare_config \
-  fast_forward acquire_update_lock cleanup_temporary_files; do
+  fast_forward acquire_update_lock cleanup_temporary_files updater_changed \
+  prepare_fetched_runner verify_post_fetch_state; do
   require_function "${function_name}"
 done
 
@@ -96,6 +97,76 @@ fi
 assert_eq "$(sha256sum "${clone}/apps/api/.env" | cut -d' ' -f1)" "${api_checksum_before}"
 assert_eq "$(sha256sum "${clone}/apps/web/.env.production" | cut -d' ' -f1)" "${web_checksum_before}"
 
+# A fetched updater is selected from the verified fast-forwarded commit and its
+# POST_FETCH marker applies v2 behavior in the same simulated invocation.
+update_remote="${test_root}/update-remote.git"
+update_seed="${test_root}/update-seed"
+update_clone="${test_root}/update-clone"
+git init -q --bare "${update_remote}"
+git init -q -b main "${update_seed}"
+git -C "${update_seed}" config user.email test@example.invalid
+git -C "${update_seed}" config user.name test
+printf 'base\n' > "${update_seed}/README.md"
+git -C "${update_seed}" add README.md
+git -C "${update_seed}" commit -qm base
+absent_commit="$(git -C "${update_seed}" rev-parse HEAD)"
+mkdir -p "${update_seed}/deploy/ec2"
+cat > "${update_seed}/deploy/ec2/update.sh" <<'V1'
+#!/usr/bin/env bash
+render_template() { printf 'v1\n' > "$1"; }
+if [[ "${MARXMATRIX_UPDATE_POST_FETCH:-}" == 1 && "${1:-}" == render ]]; then render_template "$2"; fi
+V1
+chmod +x "${update_seed}/deploy/ec2/update.sh"
+git -C "${update_seed}" add deploy/ec2/update.sh
+git -C "${update_seed}" commit -qm v1
+old_updater_commit="$(git -C "${update_seed}" rev-parse HEAD)"
+git -C "${update_seed}" remote add origin "${update_remote}"
+git -C "${update_seed}" push -q -u origin main
+git clone -q --branch main "${update_remote}" "${update_clone}"
+cat > "${update_seed}/deploy/ec2/update.sh" <<'V2'
+#!/usr/bin/env bash
+render_template() { printf 'v2\n' > "$1"; }
+if [[ "${MARXMATRIX_UPDATE_POST_FETCH:-}" == 1 && "${1:-}" == render ]]; then render_template "$2"; fi
+V2
+chmod +x "${update_seed}/deploy/ec2/update.sh"
+git -C "${update_seed}" add deploy/ec2/update.sh
+git -C "${update_seed}" commit -qm v2
+new_updater_commit="$(git -C "${update_seed}" rev-parse HEAD)"
+git -C "${update_seed}" push -q origin main
+git -C "${update_clone}" fetch -q origin main
+fast_forward "${update_clone}" FETCH_HEAD >/dev/null
+updater_changed "${update_clone}" "${absent_commit}" "${old_updater_commit}" || fail "new updater path was not detected"
+updater_changed "${update_clone}" "${old_updater_commit}" "${new_updater_commit}" || fail "changed updater blob was not detected"
+if updater_changed "${update_clone}" "${new_updater_commit}" "${new_updater_commit}"; then fail "unchanged updater was reported changed"; fi
+missing_new_status=0
+updater_changed "${update_clone}" "${old_updater_commit}" "${absent_commit}" 2>/dev/null || missing_new_status=$?
+assert_eq "${missing_new_status}" 2
+fetched_runner="$(mktemp /tmp/marxmatrix-update.test.XXXXXX)"
+prepare_fetched_runner "${update_clone}" "${old_updater_commit}" "${new_updater_commit}" "${fetched_runner}"
+assert_eq "$(stat -c %a "${fetched_runner}")" 700
+rendered_version="${test_root}/rendered-version"
+MARXMATRIX_UPDATE_POST_FETCH=1 bash "${fetched_runner}" render "${rendered_version}"
+assert_eq "$(<"${rendered_version}")" v2
+
+# Worktree tampering and symlink substitution are rejected before second exec.
+printf '# tampered\n' >> "${update_clone}/deploy/ec2/update.sh"
+tampered_runner="$(mktemp /tmp/marxmatrix-update.test.XXXXXX)"
+if prepare_fetched_runner "${update_clone}" "${old_updater_commit}" "${new_updater_commit}" "${tampered_runner}" 2>/dev/null; then
+  fail "tampered fetched updater was accepted"
+fi
+rm -f -- "${tampered_runner}"
+git -C "${update_clone}" restore deploy/ec2/update.sh
+rm -f -- "${update_clone}/deploy/ec2/update.sh"
+ln -s "${update_seed}/deploy/ec2/update.sh" "${update_clone}/deploy/ec2/update.sh"
+symlink_runner="$(mktemp /tmp/marxmatrix-update.test.XXXXXX)"
+if prepare_fetched_runner "${update_clone}" "${old_updater_commit}" "${new_updater_commit}" "${symlink_runner}" 2>/dev/null; then
+  fail "symlinked fetched updater was accepted"
+fi
+rm -f -- "${symlink_runner}"
+rm -f -- "${update_clone}/deploy/ec2/update.sh"
+git -C "${update_clone}" restore deploy/ec2/update.sh
+rm -f -- "${fetched_runner}"
+
 # A factored fast-forward rejects genuinely divergent history.
 divergent="${test_root}/divergent"
 git clone -q --branch main "${remote}" "${divergent}"
@@ -122,13 +193,15 @@ acquire_update_lock "${lock_path}"
 flock -u 9
 exec 9>&-
 (
-  runner_path="${test_root}/synthetic-runner"
-  printf 'runner\n' > "${runner_path}"
+  runner_path="$(mktemp /tmp/marxmatrix-update.test.XXXXXX)"
+  previous_runner_path="$(mktemp /tmp/marxmatrix-update.test.XXXXXX)"
   MARXMATRIX_UPDATE_RUNNER=1
   MARXMATRIX_UPDATE_RUNNER_PATH="${runner_path}"
+  MARXMATRIX_UPDATE_PRE_FETCH_RUNNER_PATH="${previous_runner_path}"
   root_work_dir=""
   cleanup_temporary_files
   [[ ! -e "${runner_path}" ]] || fail "temporary runner was not removed"
+  [[ ! -e "${previous_runner_path}" ]] || fail "previous temporary runner was not removed"
 )
 
 # Both systemd files roll back when the second install fails.
@@ -238,6 +311,9 @@ test_cloudflare_case $'173.245.48.0/20\n' $'not-a-network\n' fail malformed-v6
 assert_contains "${updater}" 'if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then'
 assert_contains "${updater}" 'exec "${runner}"'
 assert_contains "${updater}" 'fast_forward "${APP_DIR}" FETCH_HEAD'
+assert_contains "${updater}" 'export MARXMATRIX_UPDATE_POST_FETCH=1'
+assert_contains "${updater}" 'export MARXMATRIX_UPDATE_OLD_COMMIT="${old_commit}"'
+assert_contains "${updater}" 'export MARXMATRIX_UPDATE_NEW_COMMIT="${new_commit}"'
 assert_contains "${updater}" 'curl --resolve "ngocthanhhx7.site:443:127.0.0.1"'
 assert_contains "${updater}" 'http://127.0.0.1:3000/api/v1/ready'
 assert_not_contains "${updater}" 'API_UNIT_SOURCE'

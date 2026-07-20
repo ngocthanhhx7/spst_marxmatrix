@@ -26,8 +26,14 @@ cleanup_temporary_files() {
   if [[ -n "${root_work_dir:-}" && "${root_work_dir}" == /tmp/marxmatrix-update-work.* && -d "${root_work_dir}" ]]; then
     rm -rf -- "${root_work_dir}"
   fi
-  if [[ "${MARXMATRIX_UPDATE_RUNNER:-}" == "1" && -n "${MARXMATRIX_UPDATE_RUNNER_PATH:-}" ]]; then
-    rm -f -- "${MARXMATRIX_UPDATE_RUNNER_PATH}"
+  cleanup_runner_path "${MARXMATRIX_UPDATE_RUNNER_PATH:-}"
+  cleanup_runner_path "${MARXMATRIX_UPDATE_PRE_FETCH_RUNNER_PATH:-}"
+}
+
+cleanup_runner_path() {
+  local path="$1"
+  if [[ "${path}" == /tmp/marxmatrix-update.* && -f "${path}" && ! -L "${path}" ]]; then
+    rm -f -- "${path}"
   fi
 }
 
@@ -84,6 +90,63 @@ fast_forward() {
   run_as_app git -C "${repository}" merge --ff-only "${ref}"
 }
 
+is_safe_commit_id() {
+  [[ "$1" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]
+}
+
+verify_commit_alignment() {
+  local repository="$1" old_commit="$2" new_commit="$3"
+  local head_commit fetch_commit remote_commit
+  is_safe_commit_id "${old_commit}" && is_safe_commit_id "${new_commit}" || return 1
+  head_commit="$(run_as_app git -C "${repository}" rev-parse HEAD)"
+  fetch_commit="$(run_as_app git -C "${repository}" rev-parse FETCH_HEAD)"
+  remote_commit="$(run_as_app git -C "${repository}" rev-parse "refs/remotes/${REMOTE}/${BRANCH}")"
+  if [[ "${head_commit}" != "${new_commit}" || "${fetch_commit}" != "${new_commit}" || \
+    "${remote_commit}" != "${new_commit}" ]]; then
+    echo "Fetched updater commit alignment check failed." >&2
+    return 1
+  fi
+  if ! run_as_app git -C "${repository}" merge-base --is-ancestor "${old_commit}" "${new_commit}"; then
+    echo "Fetched updater is not a fast-forward descendant." >&2
+    return 1
+  fi
+}
+
+updater_changed() {
+  local repository="$1" old_commit="$2" new_commit="$3" old_blob="" new_blob
+  new_blob="$(run_as_app git -C "${repository}" rev-parse "${new_commit}:deploy/ec2/update.sh")" || return 2
+  if old_blob="$(run_as_app git -C "${repository}" rev-parse "${old_commit}:deploy/ec2/update.sh" 2>/dev/null)"; then :; fi
+  [[ "${old_blob}" != "${new_blob}" ]]
+}
+
+prepare_fetched_runner() {
+  local repository="$1" old_commit="$2" new_commit="$3" runner="$4"
+  local source_path="${repository}/deploy/ec2/update.sh" expected_blob actual_blob
+  verify_commit_alignment "${repository}" "${old_commit}" "${new_commit}" || return 1
+  if [[ ! -f "${source_path}" || -L "${source_path}" || ! -x "${source_path}" ]]; then
+    echo "Fetched updater must be a regular, non-symlink executable file." >&2
+    return 1
+  fi
+  expected_blob="$(run_as_app git -C "${repository}" rev-parse "${new_commit}:deploy/ec2/update.sh")"
+  actual_blob="$(run_as_app git -C "${repository}" hash-object "${source_path}")"
+  if [[ "${actual_blob}" != "${expected_blob}" ]]; then
+    echo "Fetched updater worktree content does not match its commit." >&2
+    return 1
+  fi
+  if [[ "${runner}" != /tmp/marxmatrix-update.* || ! -f "${runner}" || -L "${runner}" ]]; then
+    echo "Fetched updater runner path is unsafe." >&2
+    return 1
+  fi
+  install_file -m 700 "${source_path}" "${runner}"
+}
+
+verify_post_fetch_state() {
+  local repository="$1" old_commit="$2" new_commit="$3"
+  verify_expected_remote "${repository}" || return 1
+  verify_commit_alignment "${repository}" "${old_commit}" "${new_commit}" || return 1
+  verify_target_does_not_track_env "${repository}" "${new_commit}" || return 1
+}
+
 require_environment_files() {
   if [[ ! -s "${API_ENV}" || ! -s "${WEB_ENV}" ]]; then
     echo "Environment files are missing or empty. Follow deploy/ec2/ENVIRONMENT.md first." >&2
@@ -97,6 +160,12 @@ acquire_update_lock() {
   flock -n 9
 }
 
+is_protected_runner() {
+  [[ "${MARXMATRIX_UPDATE_RUNNER:-}" == "1" && \
+    "${MARXMATRIX_UPDATE_RUNNER_PATH:-}" == /tmp/marxmatrix-update.* && \
+    "${BASH_SOURCE[0]}" == "${MARXMATRIX_UPDATE_RUNNER_PATH}" ]]
+}
+
 reexec_from_temporary_runner() {
   if [[ "${MARXMATRIX_UPDATE_RUNNER:-}" == "1" ]]; then return; fi
   local runner
@@ -105,6 +174,21 @@ reexec_from_temporary_runner() {
   export MARXMATRIX_UPDATE_RUNNER_PATH="${runner}"
   trap cleanup_temporary_files EXIT
   install -m 700 "${BASH_SOURCE[0]}" "${runner}"
+  exec "${runner}"
+}
+
+reexec_from_fetched_runner() {
+  local repository="$1" old_commit="$2" new_commit="$3" runner
+  runner="$(mktemp /tmp/marxmatrix-update.XXXXXX)"
+  if ! prepare_fetched_runner "${repository}" "${old_commit}" "${new_commit}" "${runner}"; then
+    rm -f -- "${runner}"
+    return 1
+  fi
+  export MARXMATRIX_UPDATE_PRE_FETCH_RUNNER_PATH="${MARXMATRIX_UPDATE_RUNNER_PATH}"
+  export MARXMATRIX_UPDATE_RUNNER_PATH="${runner}"
+  export MARXMATRIX_UPDATE_POST_FETCH=1
+  export MARXMATRIX_UPDATE_OLD_COMMIT="${old_commit}"
+  export MARXMATRIX_UPDATE_NEW_COMMIT="${new_commit}"
   exec "${runner}"
 }
 
@@ -434,7 +518,10 @@ main() {
     exit 1
   fi
   CURRENT_STEP="acquiring update lock"
-  if [[ "${MARXMATRIX_UPDATE_RUNNER:-}" != "1" ]]; then
+  if ! is_protected_runner; then
+    unset MARXMATRIX_UPDATE_RUNNER MARXMATRIX_UPDATE_RUNNER_PATH \
+      MARXMATRIX_UPDATE_PRE_FETCH_RUNNER_PATH MARXMATRIX_UPDATE_POST_FETCH \
+      MARXMATRIX_UPDATE_OLD_COMMIT MARXMATRIX_UPDATE_NEW_COMMIT
     if ! acquire_update_lock /var/lock/marxmatrix-update.lock; then
       echo "Another MarxMatrix update is already running; refusing concurrent update." >&2
       exit 1
@@ -447,6 +534,7 @@ main() {
   reexec_from_temporary_runner
   trap cleanup_temporary_files EXIT
 
+  local old_commit new_commit
   CURRENT_STEP="resolving application user"
   resolve_app_home
   CURRENT_STEP="validating deployment repository"
@@ -454,19 +542,36 @@ main() {
     echo "${APP_DIR} is not a Git repository; refusing to update." >&2
     exit 1
   fi
-  require_environment_files
-  verify_clean_worktree "${APP_DIR}"
-  verify_expected_remote "${APP_DIR}"
 
-  local old_commit new_commit
-  old_commit="$(run_as_app git -C "${APP_DIR}" rev-parse HEAD)"
-  CURRENT_STEP="fetching trusted main branch"
-  run_as_app git -C "${APP_DIR}" fetch "${REMOTE}" "${BRANCH}"
-  CURRENT_STEP="checking fetched environment-file metadata"
-  verify_target_does_not_track_env "${APP_DIR}" FETCH_HEAD
-  CURRENT_STEP="fast-forwarding worktree"
-  fast_forward "${APP_DIR}" FETCH_HEAD
-  new_commit="$(run_as_app git -C "${APP_DIR}" rev-parse HEAD)"
+  if [[ "${MARXMATRIX_UPDATE_POST_FETCH:-}" == "1" ]]; then
+    old_commit="${MARXMATRIX_UPDATE_OLD_COMMIT:-}"
+    new_commit="${MARXMATRIX_UPDATE_NEW_COMMIT:-}"
+    CURRENT_STEP="verifying protected post-fetch state"
+    verify_post_fetch_state "${APP_DIR}" "${old_commit}" "${new_commit}"
+    require_environment_files
+    verify_clean_worktree "${APP_DIR}"
+  else
+    require_environment_files
+    verify_clean_worktree "${APP_DIR}"
+    verify_expected_remote "${APP_DIR}"
+    old_commit="$(run_as_app git -C "${APP_DIR}" rev-parse HEAD)"
+    CURRENT_STEP="fetching trusted main branch"
+    run_as_app git -C "${APP_DIR}" fetch "${REMOTE}" "${BRANCH}"
+    CURRENT_STEP="checking fetched environment-file metadata"
+    verify_target_does_not_track_env "${APP_DIR}" FETCH_HEAD
+    CURRENT_STEP="fast-forwarding worktree"
+    fast_forward "${APP_DIR}" FETCH_HEAD
+    new_commit="$(run_as_app git -C "${APP_DIR}" rev-parse HEAD)"
+    local updater_change_status=0
+    updater_changed "${APP_DIR}" "${old_commit}" "${new_commit}" || updater_change_status=$?
+    if [[ "${updater_change_status}" -eq 0 ]]; then
+      CURRENT_STEP="verifying fetched updater"
+      reexec_from_fetched_runner "${APP_DIR}" "${old_commit}" "${new_commit}"
+    elif [[ "${updater_change_status}" -ne 1 ]]; then
+      echo "Fetched commit does not contain the required updater." >&2
+      return 1
+    fi
+  fi
 
   CURRENT_STEP="installing workspace dependencies"
   run_as_app pnpm -C "${APP_DIR}" install --frozen-lockfile
@@ -495,7 +600,7 @@ main() {
   build_and_activate
   verify_final_state
   echo "Updated ${old_commit} -> ${new_commit}"
-  echo "Update complete. Rerun this command to apply privileged template changes fetched during this update."
+  echo "Update complete. Privileged template changes were applied in this invocation."
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

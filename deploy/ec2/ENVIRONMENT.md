@@ -80,7 +80,7 @@ curl -fsS https://api.ngocthanhhx7.site/api/v1/health
 
 ## Update after merging to `main`
 
-The updater fast-forwards the checked-out repository, then uses its protected temporary runner to build the application, render and transactionally install its embedded systemd and Nginx templates, restart services, and run local health checks directly. It intentionally does not consume privileged configuration or execute deployment scripts from the newly pulled worktree as root. A privileged template change fetched during an update takes effect on the next invocation because the current run continues from its protected pre-fetch copy; rerunning the idempotent command is safe. The updater refuses concurrent updates, dirty tracked files, missing environment files, and non-fast-forward history. It never copies, prints, or changes either environment file.
+The updater fast-forwards the checked-out repository, then uses protected temporary runners to build the application, render and transactionally install embedded systemd and Nginx templates, restart services, and run local health checks directly. If the updater changed, the same command verifies the fetched updater against the trusted fast-forwarded commit and internally starts a second protected pass, so new privileged templates take effect immediately without an operator rerun. It intentionally does not consume privileged configuration directly from the pulled worktree. The updater refuses concurrent updates, dirty tracked files, missing environment files, and non-fast-forward history. It never copies, prints, or changes either environment file.
 
 ```bash
 sudo /opt/marxmatrix/deploy/ec2/update.sh
