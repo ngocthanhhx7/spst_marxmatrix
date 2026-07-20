@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { describe, expect, it, vi } from 'vitest';
 import { RAG_EMBEDDING_DIMENSION } from './gemini-rag.provider.js';
-import { RagIngestionService } from './rag-ingestion.service.js';
+import { RAG_EMBEDDING_CLAIM_TIMEOUT_MS, RagIngestionService } from './rag-ingestion.service.js';
 
 const documentId = '507f1f77bcf86cd799439011';
 
@@ -56,22 +56,24 @@ describe('RagIngestionService', () => {
     });
 
     await expect(service.reindexDocument(documentId)).rejects.toThrow('provider detail');
-    expect(updates).toContainEqual([
-      expect.objectContaining({
-        _id: document._id,
-        courseId: 'MLN112',
-        parsedPageToken: 'winner-token',
-        deletionState: 'active',
-        status: 'embedding'
-      }),
-      {
-        $set: {
-          status: 'failed',
-          errorCode: 'EMBEDDING_FAILED',
-          errorMessage: 'Document indexing could not be completed.'
-        }
+    const failedFilter = updates[0]?.[0] as { embeddingToken?: unknown };
+    expect(failedFilter).toMatchObject({
+      _id: document._id,
+      courseId: 'MLN112',
+      parsedPageToken: 'winner-token',
+      deletionState: 'active',
+      status: 'embedding'
+    });
+    expect(typeof failedFilter.embeddingToken).toBe('string');
+    expect(updates[0]?.[1]).toEqual({
+      $set: {
+        status: 'failed',
+        embeddingStartedAt: null,
+        embeddingToken: null,
+        errorCode: 'EMBEDDING_FAILED',
+        errorMessage: 'Document indexing could not be completed.'
       }
-    ]);
+    });
   });
 
   it('reclaims only a failed document whose embedding previously failed', async () => {
@@ -80,12 +82,27 @@ describe('RagIngestionService', () => {
     const service = serviceWith({ document, claimFilters });
 
     await expect(service.reindexDocument(documentId)).resolves.toBeUndefined();
-    expect(claimFilters[0]).toMatchObject({
+    const claimFilter = claimFilters[0] as {
       $or: [
-        { status: { $in: ['parsed', 'embedding', 'ready'] } },
-        { status: 'failed', errorCode: 'EMBEDDING_FAILED' }
+        { status: unknown },
+        { status: unknown },
+        { $or: [{ embeddingStartedAt: { $lte: unknown } }] }
+      ];
+    };
+    expect(claimFilter).toMatchObject({
+      $or: [
+        { status: { $in: ['parsed', 'ready'] } },
+        { status: 'failed', errorCode: 'EMBEDDING_FAILED' },
+        {
+          status: 'embedding',
+          $or: [
+            { embeddingStartedAt: { $lte: claimFilter.$or[2].$or[0].embeddingStartedAt.$lte } },
+            { embeddingStartedAt: null }
+          ]
+        }
       ]
     });
+    expect(claimFilter.$or[2].$or[0].embeddingStartedAt.$lte).toBeInstanceOf(Date);
 
     const parseFailure = { ...document, errorCode: 'PDF_PARSE_FAILED' };
     await expect(
@@ -178,6 +195,62 @@ describe('RagIngestionService', () => {
     await expect(indexing).rejects.toThrow('first embedding failed');
     expect(embed).toHaveBeenCalledTimes(4);
   });
+
+  it('rejects a still-live claim retryably when a queue lease can be reclaimed first', async () => {
+    const embed = vi.fn(async () => new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0.5));
+    const document = {
+      ...fixtureDocument(),
+      status: 'embedding',
+      embeddingStartedAt: new Date(Date.now() - Math.floor(RAG_EMBEDDING_CLAIM_TIMEOUT_MS * 0.98)),
+      embeddingToken: 'active-token'
+    };
+
+    await expect(
+      serviceWith({ document, embed }).reindexDocument(documentId)
+    ).rejects.toMatchObject({ code: 'RAG_EMBEDDING_BUSY', statusCode: 409 });
+    expect(embed).not.toHaveBeenCalled();
+  });
+
+  it('reclaims a legacy embedding claim that has no persisted start timestamp', async () => {
+    const document = {
+      ...fixtureDocument(),
+      status: 'embedding'
+    };
+
+    await expect(serviceWith({ document }).reindexDocument(documentId)).resolves.toBeUndefined();
+  });
+
+  it('propagates cancellation to active embeds and performs no chunk writes', async () => {
+    const controller = new AbortController();
+    const bulkWrite = vi.fn(() => Promise.resolve());
+    const embed = vi.fn(
+      (_text: string, signal?: AbortSignal) =>
+        new Promise<number[]>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true }
+          );
+        })
+    );
+    const service = serviceWith({
+      document: fixtureDocument(),
+      pages: Array.from({ length: 6 }, (_, index) => ({
+        pageNumber: index + 1,
+        text: `page ${index + 1}`
+      })),
+      embed,
+      bulkWrite
+    });
+    const indexing = service.reindexDocument(documentId, controller.signal);
+    await vi.waitFor(() => expect(embed).toHaveBeenCalledTimes(4));
+
+    controller.abort();
+
+    await expect(indexing).rejects.toMatchObject({ code: 'RAG_OPERATION_ABORTED' });
+    expect(embed).toHaveBeenCalledTimes(4);
+    expect(bulkWrite).not.toHaveBeenCalled();
+  });
 });
 
 function fixtureDocument() {
@@ -200,12 +273,14 @@ type FixtureDocument = {
   status: string;
   errorCode: string | null;
   deletionState: string;
+  embeddingStartedAt?: Date | null;
+  embeddingToken?: string | null;
 };
 
 function serviceWith(options: {
   document: FixtureDocument;
   pages?: { pageNumber: number; text: string }[];
-  embed?: (text: string) => Promise<number[]>;
+  embed?: (text: string, signal?: AbortSignal) => Promise<number[]>;
   updateOne?: (...args: unknown[]) => Promise<{ matchedCount: number }>;
   bulkWrite?: (operations: unknown[]) => Promise<void>;
   claimFilters?: unknown[];

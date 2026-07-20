@@ -43,6 +43,8 @@ export class DocumentRecord {
   @Prop({ type: Date, default: null, select: false }) parsingStartedAt!: Date | null;
   @Prop({ type: String, default: null, select: false }) parsingToken!: string | null;
   @Prop({ type: String, default: null, select: false }) parsedPageToken!: string | null;
+  @Prop({ type: Date, default: null, select: false }) embeddingStartedAt!: Date | null;
+  @Prop({ type: String, default: null, select: false }) embeddingToken!: string | null;
   createdAt!: Date;
   updatedAt!: Date;
 }

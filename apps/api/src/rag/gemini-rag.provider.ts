@@ -100,8 +100,8 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
       ((milliseconds) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
   }
 
-  embed(text: string): Promise<number[]> {
-    return this.embedForRetrieval(text, 'document');
+  embed(text: string, signal?: AbortSignal): Promise<number[]> {
+    return this.embedForRetrieval(text, 'document', signal);
   }
 
   embedQuery(text: string): Promise<number[]> {
@@ -147,21 +147,33 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
     return candidate;
   }
 
-  private async embedForRetrieval(text: string, purpose: 'document' | 'query'): Promise<number[]> {
+  private async embedForRetrieval(
+    text: string,
+    purpose: 'document' | 'query',
+    signal?: AbortSignal
+  ): Promise<number[]> {
     if (text.trim().length === 0)
       throw new DomainError('RAG_EMBEDDING_INVALID', 'Embedding input must not be empty.', 422);
     const startedAt = Date.now();
-    const response = await this.retry('embedding', () =>
-      this.withTimeout((signal) =>
-        this.client.models.embedContent({
-          model: this.options.embeddingModel,
-          contents:
-            purpose === 'document'
-              ? `title: none | text: ${text}`
-              : `task: search result | query: ${text}`,
-          config: { outputDimensionality: RAG_EMBEDDING_DIMENSION, abortSignal: signal }
-        })
-      )
+    const response = await this.retry(
+      'embedding',
+      () =>
+        this.withTimeout(
+          (requestSignal) =>
+            this.client.models.embedContent({
+              model: this.options.embeddingModel,
+              contents:
+                purpose === 'document'
+                  ? `title: none | text: ${text}`
+                  : `task: search result | query: ${text}`,
+              config: {
+                outputDimensionality: RAG_EMBEDDING_DIMENSION,
+                abortSignal: requestSignal
+              }
+            }),
+          signal
+        ),
+      signal
     );
     const values = response.embeddings?.[0]?.values;
     if (
@@ -187,11 +199,13 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
 
   private async retry<T>(
     operation: 'embedding' | 'generation',
-    action: () => Promise<T>
+    action: () => Promise<T>,
+    signal?: AbortSignal
   ): Promise<T> {
     let attempt = 0;
     while (true) {
       try {
+        if (signal?.aborted) throw operationAborted();
         return await action();
       } catch (error: unknown) {
         const classified = classify(error, operation);
@@ -202,11 +216,27 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
     }
   }
 
-  private async withTimeout<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  private async withTimeout<T>(
+    operation: (signal: AbortSignal) => Promise<T>,
+    externalSignal?: AbortSignal
+  ): Promise<T> {
+    if (externalSignal?.aborted) throw operationAborted();
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let rejectExternal: ((error: DomainError) => void) | undefined;
+    const abortExternally = () => {
+      rejectExternal?.(operationAborted());
+      controller.abort();
+    };
+    const externallyAborted =
+      externalSignal === undefined
+        ? undefined
+        : new Promise<never>((_resolve, reject) => {
+            rejectExternal = reject;
+            externalSignal.addEventListener('abort', abortExternally, { once: true });
+          });
     try {
-      return await Promise.race([
+      const operations: Promise<T>[] = [
         operation(controller.signal),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
@@ -214,9 +244,12 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
             reject(new DomainError('RAG_AI_TIMEOUT', 'Grounded Copilot request timed out.', 504));
           }, this.options.timeoutMs);
         })
-      ]);
+      ];
+      if (externallyAborted !== undefined) operations.push(externallyAborted);
+      return await Promise.race(operations);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', abortExternally);
     }
   }
 
@@ -304,6 +337,10 @@ function responseInvalid(): DomainError {
     'Grounded Copilot returned an invalid response.',
     502
   );
+}
+
+function operationAborted(): DomainError {
+  return new DomainError('RAG_OPERATION_ABORTED', 'Document indexing was cancelled.', 499);
 }
 
 function classify(error: unknown, operation: 'embedding' | 'generation'): DomainError {

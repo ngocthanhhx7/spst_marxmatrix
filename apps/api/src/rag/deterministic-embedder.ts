@@ -4,12 +4,14 @@ import { RAG_EMBEDDING_DIMENSION } from '@marxmatrix/contracts';
 export { RAG_EMBEDDING_DIMENSION } from '@marxmatrix/contracts';
 
 export interface TextEmbedder {
-  embed(text: string): Promise<number[]>;
+  embed(text: string, signal?: AbortSignal): Promise<number[]>;
 }
 
 /** Deterministic, non-network demo embedding; live providers must be explicitly configured separately. */
 export class DeterministicTextEmbedder implements TextEmbedder {
-  embed(text: string): Promise<number[]> {
+  embed(text: string, signal?: AbortSignal): Promise<number[]> {
+    if (signal?.aborted)
+      return Promise.reject(new DOMException('Embedding aborted.', 'AbortError'));
     const vector = new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0);
     for (const token of text
       .normalize('NFKC')

@@ -141,6 +141,31 @@ describe('GeminiRagProvider', () => {
     });
   });
 
+  it('aborts an active embedding request without retrying it', async () => {
+    const embedContent = vi.fn<GeminiRagClient['models']['embedContent']>(
+      ({ config }) =>
+        new Promise((_resolve, reject) => {
+          config.abortSignal.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true }
+          );
+        })
+    );
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const controller = new AbortController();
+    const request = provider(client({ embedContent }), { maxRetries: 2, sleep }).embed(
+      'document',
+      controller.signal
+    );
+
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ code: 'RAG_OPERATION_ABORTED' });
+    expect(embedContent).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
   it('returns a schema-validated grounded candidate with token-only usage metadata', async () => {
     const logs: Record<string, unknown>[] = [];
     const result = await provider(client(), { log: (record) => logs.push(record) }).generate(

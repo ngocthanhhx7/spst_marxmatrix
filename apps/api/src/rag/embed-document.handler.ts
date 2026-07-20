@@ -21,7 +21,7 @@ export class EmbedDocumentHandler implements JobHandler, OnModuleInit {
   async handle(job: Parameters<JobHandler['handle']>[0], signal: AbortSignal): Promise<void> {
     if (signal.aborted) throw new Error('Worker operation was aborted.');
     try {
-      await this.ingestion.reindexDocument(job.payload.documentId.toString());
+      await this.ingestion.reindexDocument(job.payload.documentId.toString(), signal);
     } catch (error: unknown) {
       if (this.isPublicRagError(error)) throw new JobHandlerFailure('EMBEDDING_FAILED');
       throw error;

@@ -14,6 +14,7 @@ import { Job, type JobDocument } from './schemas/job.schema.js';
 
 const MIN_LEASE_MS = 1_000;
 const MAX_LEASE_MS = 300_000;
+export const DEFAULT_JOB_LEASE_MS = 30_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const MAX_BACKOFF_MS = 60_000;
 
@@ -104,7 +105,7 @@ export class JobService {
   async claim(
     workerId: string,
     now = new Date(),
-    leaseMs = 30_000
+    leaseMs = DEFAULT_JOB_LEASE_MS
   ): Promise<LeasedJobDocument | null> {
     const worker = this.workerId(workerId);
     const current = this.date(now, 'now');
