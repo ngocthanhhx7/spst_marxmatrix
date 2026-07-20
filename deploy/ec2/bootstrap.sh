@@ -63,6 +63,7 @@ run_as_app() {
 }
 
 cd "${APP_DIR}"
+chmod 755 "${APP_DIR}/deploy/ec2/update.sh"
 run_as_app pnpm install --frozen-lockfile
 run_as_app pnpm --filter @marxmatrix/contracts build
 run_as_app pnpm --filter @marxmatrix/api build

@@ -26,12 +26,12 @@ VITE_ENABLE_DEMO_MODE=false
 
 ## API values for first deployment with EC2-local MongoDB
 
-This profile gets the site working with the MongoDB container installed by `bootstrap.sh`. It is suitable for initial testing. Keep `NODE_ENV=development` because the application intentionally requires MongoDB Atlas vector search when `NODE_ENV=production`.
+This profile gets the site working with the MongoDB container installed by `bootstrap.sh`. For a self-hosted production deployment, use `NODE_ENV=production` and explicitly allow the self-hosted vector configuration.
 
 Use these non-secret values and keep the remaining defaults from `.env.example`:
 
 ```dotenv
-NODE_ENV=development
+NODE_ENV=production
 PORT=3000
 FRONTEND_URL=https://ngocthanhhx7.site
 CORS_ORIGINS=https://ngocthanhhx7.site,https://www.ngocthanhhx7.site
@@ -42,6 +42,7 @@ COOKIE_SECURE=true
 AUTH_COOKIE_SAME_SITE=lax
 AI_PROVIDER=gemini
 RAG_VECTOR_PROVIDER=local
+ALLOW_SELF_HOSTED_PRODUCTION=true
 DEMO_MODE=false
 ```
 
@@ -75,6 +76,20 @@ MongoDB Atlas must contain a vector-search index named `rag_chunks_vector_index`
 sudo /opt/marxmatrix/deploy/ec2/activate.sh
 sudo systemctl status marxmatrix-api marxmatrix-worker --no-pager
 curl -fsS https://api.ngocthanhhx7.site/api/v1/health
+```
+
+## Update after merging to `main`
+
+The updater fast-forwards the checked-out repository, installs dependencies, refreshes service and Nginx configuration, builds and restarts through `activate.sh`, then verifies the local API and web origin. It refuses concurrent updates, dirty tracked files, missing environment files, and non-fast-forward history. It never copies, prints, or changes either environment file.
+
+```bash
+sudo /opt/marxmatrix/deploy/ec2/update.sh
+```
+
+If you change `GEMINI_API_KEY` in the API environment file, restart the API and worker after saving it:
+
+```bash
+sudo systemctl restart marxmatrix-api marxmatrix-worker
 ```
 
 Changing API `.env` later only requires a service restart:

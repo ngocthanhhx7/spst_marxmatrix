@@ -11,6 +11,6 @@
 ### Custom deploy hooks
 
 - Pre-merge: `pnpm run verify`
-- Deploy trigger: SSH to EC2, pull `main`, then run `sudo /opt/marxmatrix/deploy/ec2/activate.sh`
-- Deploy status: `systemctl status marxmatrix-api marxmatrix-worker nginx docker --no-pager`
+- Deploy trigger: SSH to EC2, then run `sudo /opt/marxmatrix/deploy/ec2/update.sh`
+- Deploy status: `sudo systemctl status marxmatrix-api marxmatrix-worker nginx docker --no-pager`
 - Health check: `curl -fsS https://api.ngocthanhhx7.site/api/v1/health`
