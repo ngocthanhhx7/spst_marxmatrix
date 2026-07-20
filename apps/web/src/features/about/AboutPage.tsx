@@ -211,7 +211,8 @@ export function AboutPage() {
             <p>
               Chúng tôi ưu tiên một liên kết nguồn hơn một khẳng định không căn cứ, một giới hạn
               được nói rõ hơn sự chắc chắn giả tạo, và một lập luận có thể sửa đổi hơn một câu trả
-              lời bóng bẩy nhưng không thể kiểm tra.
+              lời bóng bẩy nhưng không thể kiểm tra. Kết luận cuối cùng thuộc về con người và phải
+              qua đánh giá của con người.
             </p>
           </div>
         </section>
@@ -300,7 +301,7 @@ export function AboutPage() {
           <p className="about__eyebrow about__eyebrow--amber">
             10 / HƯỚNG ĐI, KHÔNG PHẢI KHẢ NĂNG HIỆN TẠI
           </p>
-          <h2 id="future-title">Hướng phát triển</h2>
+          <h2 id="future-title">Hướng phát triển (không phải khả năng hiện tại)</h2>
           <p>
             Nhóm dự định tiếp tục cải thiện quy trình xem xét, làm việc cùng bằng chứng và độ rõ
             ràng của nguồn gốc tài liệu. Đây là hướng phát triển trong tương lai, không phải cam kết

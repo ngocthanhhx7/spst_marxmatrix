@@ -76,15 +76,15 @@ export function AppRouter() {
     <BrowserRouter>
       <Routes>
         <Route element={<SessionRestorationGate />}>
-          <Route
-            path="about"
-            element={
-              <LazyPage>
-                <AboutPage />
-              </LazyPage>
-            }
-          />
           <Route element={<AppShell />}>
+            <Route
+              path="about"
+              element={
+                <LazyPage>
+                  <AboutPage />
+                </LazyPage>
+              }
+            />
             <Route
               index
               element={

@@ -15,7 +15,8 @@ export function AppShell() {
   const clear = useSessionStore((state) => state.clearSession);
   const user = useSessionStore((state) => state.user);
   const location = useLocation();
-  const isStandalonePublic = ['/', '/login', '/register'].includes(location.pathname);
+  const isStandalonePublic = ['/', '/about', '/login', '/register'].includes(location.pathname);
+  const pageOwnsMain = location.pathname === '/about';
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
@@ -74,13 +75,17 @@ export function AppShell() {
           )}
         </>
       )}
-      <main
-        id="main-content"
-        className={isStandalonePublic ? 'main-content main-content--standalone' : 'main-content'}
-        tabIndex={-1}
-      >
+      {pageOwnsMain ? (
         <Outlet />
-      </main>
+      ) : (
+        <main
+          id="main-content"
+          className={isStandalonePublic ? 'main-content main-content--standalone' : 'main-content'}
+          tabIndex={-1}
+        >
+          <Outlet />
+        </main>
+      )}
       {!isStandalonePublic && <AppFooter />}
     </>
   );

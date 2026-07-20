@@ -71,6 +71,13 @@
   width: 28px;
   height: 28px;
 }
+.about__header > .brand-mark,
+.about__nav > a,
+.about__account-links > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
 .about__nav,
 .about__account-links {
   display: flex;

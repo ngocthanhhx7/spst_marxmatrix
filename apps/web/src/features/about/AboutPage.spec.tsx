@@ -24,6 +24,7 @@ describe('AboutPage', () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Không có bằng chứng, không có kết luận.')).toBeInTheDocument();
+    expect(screen.getByText('Bỏ qua điều hướng')).toHaveAttribute('href', '#main-content');
   }, 15_000);
 
   it('keeps the public header routes, active About state and guest actions', async () => {
@@ -111,6 +112,42 @@ describe('AboutPage', () => {
       expect(within(protocolSection as HTMLElement).getByText(step)).toBeInTheDocument();
   }, 15_000);
 
+  it('links every real workspace and labels future work as not current capability', async () => {
+    window.history.replaceState({}, '', '/about');
+    render(<App />);
+
+    await screen.findByRole('heading', {
+      name: 'Chúng tôi không bắt đầu bằng một sản phẩm. Chúng tôi bắt đầu bằng một câu hỏi.'
+    });
+    const toolsSection = screen
+      .getByRole('heading', { name: 'Ba nơi kết nối để làm công việc này.' })
+      .closest('section');
+    expect(toolsSection).not.toBeNull();
+    expect(
+      within(toolsSection as HTMLElement).getByRole('link', { name: 'Mở Scanner' })
+    ).toHaveAttribute('href', '/scanner/new');
+    expect(
+      within(toolsSection as HTMLElement).getByRole('link', { name: 'Mở Copilot' })
+    ).toHaveAttribute('href', '/copilot');
+    expect(
+      within(toolsSection as HTMLElement).getByRole('link', { name: 'Vào Capital Arena' })
+    ).toHaveAttribute('href', '/arena');
+    expect(
+      screen.getByRole('heading', { name: 'Hướng phát triển (không phải khả năng hiện tại)' })
+    ).toBeInTheDocument();
+  }, 15_000);
+
+  it('keeps final conclusions with human judgement and review', async () => {
+    window.history.replaceState({}, '', '/about');
+    render(<App />);
+
+    expect(
+      await screen.findByText(
+        /Kết luận cuối cùng thuộc về con người và phải qua đánh giá của con người/i
+      )
+    ).toBeInTheDocument();
+  }, 15_000);
+
   it('renders header, main and full Product/Resources/Legal footer as sibling landmarks', async () => {
     window.history.replaceState({}, '', '/about');
     render(<App />);
@@ -133,5 +170,9 @@ describe('AboutPage', () => {
     expect(css).toContain('@media (max-width: 48rem)');
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
     expect(css).toContain(':focus-visible');
+    expect(css).toMatch(
+      /\.about__header > \.brand-mark,[\s\S]*?\.about__account-links > a \{[\s\S]*?min-height: 44px;/
+    );
+    expect(css).not.toContain('min-height: 40px');
   });
 });

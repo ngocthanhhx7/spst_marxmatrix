@@ -35,6 +35,20 @@ describe('AppShell', () => {
     expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
   });
 
+  it('keeps /about standalone while supplying the shared skip link and scroll restoration', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    render(
+      <MemoryRouter initialEntries={['/about']}>
+        <AppShell />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Bỏ qua điều hướng')).toHaveAttribute('href', '#main-content');
+    expect(document.querySelector('.site-header')).not.toBeInTheDocument();
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+  });
+
   it('exposes every primary workspace and the current route to signed-in learners', () => {
     useSessionStore.getState().setSession({
       accessToken: 'token',
