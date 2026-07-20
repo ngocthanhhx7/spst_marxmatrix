@@ -83,6 +83,19 @@ class TestZodController {
 }
 
 describe('API platform', () => {
+  it('defaults the API listener to loopback and permits an explicit container bind host', () => {
+    expect(parseEnvironment(demoEnvironment).API_HOST).toBe('127.0.0.1');
+    expect(parseEnvironment({ ...demoEnvironment, API_HOST: '0.0.0.0' }).API_HOST).toBe(
+      '0.0.0.0'
+    );
+  });
+
+  it('binds the Nest listener to the configured API host', async () => {
+    const mainSource = await readFile(new URL('./main.ts', import.meta.url), 'utf8');
+
+    expect(mainSource).toContain("getOrThrow<string>('API_HOST')");
+  });
+
   it('uses the repository dev runner instead of the Nest CLI watch command', async () => {
     const packageJson = JSON.parse(
       await readFile(new URL('../package.json', import.meta.url), 'utf8')
