@@ -90,3 +90,7 @@ cd /opt/marxmatrix
 pnpm --filter @marxmatrix/web build
 sudo systemctl reload nginx
 ```
+
+## Cloudflare SSL mode
+
+The EC2 origin has a Let's Encrypt certificate. In Cloudflare, set **SSL/TLS encryption mode** to **Full (strict)**. Do not use Flexible mode in production. The installed Nginx configuration temporarily accepts both HTTP and HTTPS at the origin so an existing Flexible setting cannot create a redirect loop.
