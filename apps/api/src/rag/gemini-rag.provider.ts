@@ -24,12 +24,15 @@ type GeminiUsage = {
 
 type GeminiGenerationResponse = { text?: string; usageMetadata?: GeminiUsage };
 type GeminiEmbeddingResponse = { embeddings?: { values?: number[] }[] };
+type GeminiEmbeddingContent = { role: 'user'; parts: { text: string }[] };
+
+const GEMINI_EMBEDDING_BATCH_SIZE = 32;
 
 export interface GeminiRagClient {
   models: {
     embedContent(input: {
       model: string;
-      contents: string;
+      contents: string | GeminiEmbeddingContent[];
       config: {
         outputDimensionality: number;
         abortSignal: AbortSignal;
@@ -104,6 +107,51 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
     return this.embedForRetrieval(text, 'document', signal);
   }
 
+  async embedMany(texts: readonly string[], signal?: AbortSignal): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    if (texts.some((text) => text.trim().length === 0))
+      throw new DomainError('RAG_EMBEDDING_INVALID', 'Embedding input must not be empty.', 422);
+    const startedAt = Date.now();
+    const embeddings: number[][] = [];
+    let requestCount = 0;
+    for (let offset = 0; offset < texts.length; offset += GEMINI_EMBEDDING_BATCH_SIZE) {
+      const batch = texts.slice(offset, offset + GEMINI_EMBEDDING_BATCH_SIZE);
+      const response = await this.retry(
+        'embedding',
+        () =>
+          this.withTimeout(
+            (requestSignal) =>
+              this.client.models.embedContent({
+                model: this.options.embeddingModel,
+                contents: batch.map((text) => ({
+                  role: 'user',
+                  parts: [{ text: `title: none | text: ${text}` }]
+                })),
+                config: {
+                  outputDimensionality: RAG_EMBEDDING_DIMENSION,
+                  abortSignal: requestSignal
+                }
+              }),
+            signal
+          ),
+        signal
+      );
+      embeddings.push(...this.validEmbeddings(response, batch.length));
+      requestCount += 1;
+    }
+    this.options.log?.({
+      event: 'rag_embedding_batch_completed',
+      provider: 'gemini',
+      model: this.options.embeddingModel,
+      purpose: 'document',
+      dimension: RAG_EMBEDDING_DIMENSION,
+      inputCount: texts.length,
+      requestCount,
+      durationMs: Math.max(0, Date.now() - startedAt)
+    });
+    return embeddings;
+  }
+
   embedQuery(text: string): Promise<number[]> {
     return this.embedForRetrieval(text, 'query');
   }
@@ -175,17 +223,8 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
         ),
       signal
     );
-    const values = response.embeddings?.[0]?.values;
-    if (
-      values === undefined ||
-      values.length !== RAG_EMBEDDING_DIMENSION ||
-      values.some((value) => !Number.isFinite(value))
-    )
-      throw new DomainError(
-        'RAG_EMBEDDING_INVALID',
-        'Embedding output is incompatible with the configured vector index.',
-        502
-      );
+    const values = this.validEmbeddings(response, 1)[0];
+    if (values === undefined) throw embeddingInvalid();
     this.options.log?.({
       event: 'rag_embedding_completed',
       provider: 'gemini',
@@ -195,6 +234,22 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
       durationMs: Math.max(0, Date.now() - startedAt)
     });
     return values;
+  }
+
+  private validEmbeddings(response: GeminiEmbeddingResponse, expectedCount: number): number[][] {
+    const embeddings = response.embeddings;
+    if (
+      embeddings === undefined ||
+      embeddings.length !== expectedCount ||
+      embeddings.some(
+        ({ values }) =>
+          values === undefined ||
+          values.length !== RAG_EMBEDDING_DIMENSION ||
+          values.some((value) => !Number.isFinite(value))
+      )
+    )
+      throw embeddingInvalid();
+    return embeddings.map(({ values }) => values as number[]);
   }
 
   private async retry<T>(
@@ -335,6 +390,14 @@ function responseInvalid(): DomainError {
   return new DomainError(
     'RAG_AI_RESPONSE_INVALID',
     'Grounded Copilot returned an invalid response.',
+    502
+  );
+}
+
+function embeddingInvalid(): DomainError {
+  return new DomainError(
+    'RAG_EMBEDDING_INVALID',
+    'Embedding output is incompatible with the configured vector index.',
     502
   );
 }

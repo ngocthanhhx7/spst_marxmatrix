@@ -158,6 +158,46 @@ describe('RagIngestionService', () => {
     ).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
+  it('uses a provider batch embedding capability for all document chunks', async () => {
+    const embed = vi.fn(async () => {
+      throw new Error('Single-item embedding must not be used when batching is available.');
+    });
+    const embedMany = vi.fn(async (texts: readonly string[]) =>
+      texts.map((text) =>
+        new Array<number>(RAG_EMBEDDING_DIMENSION).fill(Number(text.split(' ')[1]))
+      )
+    );
+    const writes: unknown[] = [];
+    const service = serviceWith({
+      document: fixtureDocument(),
+      pages: Array.from({ length: 6 }, (_, index) => ({
+        pageNumber: index + 1,
+        text: `page ${index + 1}`
+      })),
+      embed,
+      embedMany,
+      bulkWrite: async (operations: unknown[]) => {
+        writes.push(...operations);
+      }
+    });
+
+    await service.reindexDocument(documentId);
+
+    expect(embedMany).toHaveBeenCalledOnce();
+    expect(embedMany).toHaveBeenCalledWith(
+      ['page 1', 'page 2', 'page 3', 'page 4', 'page 5', 'page 6'],
+      undefined
+    );
+    expect(embed).not.toHaveBeenCalled();
+    expect(
+      writes.map(
+        (operation) =>
+          (operation as { updateOne: { update: { $set: { embedding: number[] } } } }).updateOne
+            .update.$set.embedding[0]
+      )
+    ).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
   it('stops claiming new chunks after the first failure and waits for active embeds to settle', async () => {
     const document = fixtureDocument();
     let rejectFirst: ((error: Error) => void) | undefined;
@@ -281,6 +321,7 @@ function serviceWith(options: {
   document: FixtureDocument;
   pages?: { pageNumber: number; text: string }[];
   embed?: (text: string, signal?: AbortSignal) => Promise<number[]>;
+  embedMany?: (texts: readonly string[], signal?: AbortSignal) => Promise<number[][]>;
   updateOne?: (...args: unknown[]) => Promise<{ matchedCount: number }>;
   bulkWrite?: (operations: unknown[]) => Promise<void>;
   claimFilters?: unknown[];
@@ -305,7 +346,8 @@ function serviceWith(options: {
       deleteMany: async () => undefined
     } as never,
     {
-      embed: options.embed ?? (async () => new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0.5))
+      embed: options.embed ?? (async () => new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0.5)),
+      ...(options.embedMany === undefined ? {} : { embedMany: options.embedMany })
     }
   );
 }

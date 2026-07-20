@@ -216,6 +216,7 @@ export class RagIngestionService {
   }
 
   private async embedInOrder(texts: readonly string[], signal?: AbortSignal): Promise<number[][]> {
+    if (this.embedder.embedMany !== undefined) return this.embedder.embedMany(texts, signal);
     const results = new Array<number[]>(texts.length);
     let nextIndex = 0;
     let stopped = false;

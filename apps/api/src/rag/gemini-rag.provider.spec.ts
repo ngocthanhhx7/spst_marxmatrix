@@ -132,6 +132,49 @@ describe('GeminiRagProvider', () => {
     expect(invocation?.config).not.toHaveProperty('taskType');
   });
 
+  it('embeds document chunks in bounded batches while preserving one vector per input', async () => {
+    const embedContent = vi.fn<GeminiRagClient['models']['embedContent']>(({ contents }) => {
+      if (!Array.isArray(contents)) throw new Error('Expected batched Gemini contents.');
+      return Promise.resolve({
+        embeddings: contents.map((content) => {
+          const text = content.parts[0]?.text ?? '';
+          const value = Number(text.match(/chunk (\d+)$/)?.[1]);
+          return { values: new Array<number>(RAG_EMBEDDING_DIMENSION).fill(value) };
+        })
+      });
+    });
+    const texts = Array.from({ length: 35 }, (_, index) => `chunk ${index + 1}`);
+
+    const embeddings = await provider(client({ embedContent })).embedMany(texts);
+
+    expect(embedContent).toHaveBeenCalledTimes(2);
+    expect(
+      (embedContent.mock.calls[0]?.[0].contents as unknown[] | undefined)?.length
+    ).toBe(32);
+    expect((embedContent.mock.calls[1]?.[0].contents as unknown[] | undefined)?.length).toBe(3);
+    expect(embedContent.mock.calls[0]?.[0].contents).toEqual(
+      texts.slice(0, 32).map((text) => ({
+        role: 'user',
+        parts: [{ text: `title: none | text: ${text}` }]
+      }))
+    );
+    expect(embeddings.map((embedding) => embedding[0])).toEqual(
+      texts.map((_text, index) => index + 1)
+    );
+  });
+
+  it('rejects a batch response that omits an input embedding', async () => {
+    const testClient = client({
+      embedContent: vi.fn().mockResolvedValue({
+        embeddings: [{ values: new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0.25) }]
+      })
+    });
+
+    await expect(provider(testClient).embedMany(['first', 'second'])).rejects.toMatchObject({
+      code: 'RAG_EMBEDDING_INVALID'
+    });
+  });
+
   it('rejects an embedding whose dimension cannot match the persisted vector index', async () => {
     const testClient = client({
       embedContent: vi.fn().mockResolvedValue({ embeddings: [{ values: [1, 2] }] })

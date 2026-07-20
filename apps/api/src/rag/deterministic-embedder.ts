@@ -5,6 +5,8 @@ export { RAG_EMBEDDING_DIMENSION } from '@marxmatrix/contracts';
 
 export interface TextEmbedder {
   embed(text: string, signal?: AbortSignal): Promise<number[]>;
+  /** Optional bulk path for providers that can return one embedding per input in one request. */
+  embedMany?(texts: readonly string[], signal?: AbortSignal): Promise<number[][]>;
 }
 
 /** Deterministic, non-network demo embedding; live providers must be explicitly configured separately. */
