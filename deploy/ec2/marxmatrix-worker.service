@@ -1,0 +1,23 @@
+[Unit]
+Description=MarxMatrix document worker
+After=network-online.target docker.service marxmatrix-api.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/marxmatrix/apps/api
+ExecStart=/usr/local/bin/node /opt/marxmatrix/apps/api/dist/worker.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/marxmatrix
+
+[Install]
+WantedBy=multi-user.target
