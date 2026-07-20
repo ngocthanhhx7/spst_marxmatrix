@@ -12,7 +12,7 @@ REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/ngocthanhhx7/spst_marxmatri
 WEB_ORIGIN="${WEB_ORIGIN:-https://ngocthanhhx7.site}"
 API_ORIGIN="${API_ORIGIN:-https://api.ngocthanhhx7.site}"
 
-dnf install -y git docker nginx certbot python3-certbot-nginx curl openssl tar xz
+dnf install -y git docker nginx certbot python3-certbot-nginx openssl tar xz
 systemctl enable --now docker
 
 if ! swapon --show=NAME --noheadings | grep -q .; then
