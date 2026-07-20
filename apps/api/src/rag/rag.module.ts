@@ -31,9 +31,11 @@ import {
 import { EmbedDocumentHandler } from './embed-document.handler.js';
 import { MongoLocalVectorRepository } from './mongo-local-vector.repository.js';
 import { RagController } from './rag.controller.js';
+import { CopilotDocumentsController } from './copilot-documents.controller.js';
 import { RagIngestionService } from './rag-ingestion.service.js';
 import { RagChunkRecord, RagChunkRecordSchema } from './schemas/rag-chunk.schema.js';
 import { DemoCorpusBootstrap } from './demo-corpus.bootstrap.js';
+import { PrivateCopilotScopeResolver } from './private-copilot-scope.resolver.js';
 
 const RAG_LIVE_PROVIDER = Symbol('RAG_LIVE_PROVIDER');
 const RAG_LOGGER = Symbol('RAG_LOGGER');
@@ -49,7 +51,7 @@ const RAG_LOGGER = Symbol('RAG_LOGGER');
       { name: RagChunkRecord.name, schema: RagChunkRecordSchema }
     ])
   ],
-  controllers: [RagController],
+  controllers: [RagController, CopilotDocumentsController],
   providers: [
     CitationFirewall,
     RagService,
@@ -57,6 +59,7 @@ const RAG_LOGGER = Symbol('RAG_LOGGER');
     DemoCorpusBootstrap,
     EmbedDocumentHandler,
     MongoCourseCorpusScopeResolver,
+    PrivateCopilotScopeResolver,
     MongoLocalVectorRepository,
     AtlasVectorRepository,
     DeterministicRagResponseGenerator,

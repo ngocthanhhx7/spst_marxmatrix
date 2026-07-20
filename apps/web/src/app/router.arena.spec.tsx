@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppRouter } from './router.js';
+import { useSessionStore } from '../features/auth/session.js';
 
 vi.mock('../shared/ui/AppShell.js', async () => {
   const { Outlet } = await import('react-router');
@@ -35,6 +36,7 @@ describe('AppRouter Arena routes', () => {
     ['/arena/games/507f1f77bcf86cd799439011/results', 'Arena results route'],
     ['/arena/games/507f1f77bcf86cd799439011/replay', 'Arena replay route']
   ])('renders %s inside the protected application shell', async (path, heading) => {
+    useSessionStore.getState().clearSession();
     window.history.replaceState({}, '', path);
     render(<AppRouter />);
     expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();

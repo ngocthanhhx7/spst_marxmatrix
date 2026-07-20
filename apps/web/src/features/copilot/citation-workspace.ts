@@ -1,11 +1,19 @@
 import type { Citation, RagMode, RagResponse } from './copilot.types.js';
 
-export type CopilotWorkspaceInput = {
-  courseId: string;
-  documentIds: string[];
-  mode: RagMode;
-  question: string;
-};
+export type CopilotWorkspaceInput =
+  | {
+      scope?: 'course';
+      courseId: string;
+      documentIds: string[];
+      mode: RagMode;
+      question: string;
+    }
+  | {
+      scope: 'private';
+      documentIds: string[];
+      mode: RagMode;
+      question: string;
+    };
 
 export type CitationWorkspace = {
   id: string;

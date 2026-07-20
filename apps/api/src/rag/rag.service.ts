@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   ragQuerySchema,
+  type CopilotQuery,
   type RagQuery,
   type RagResponse,
   type RetrievedChunk
@@ -9,6 +10,7 @@ import { DomainError } from '../common/domain-error.js';
 import { CitationFirewall, RAG_INSUFFICIENT_EVIDENCE_WARNING } from './citation-firewall.js';
 import { DeterministicTextEmbedder, type TextEmbedder } from './deterministic-embedder.js';
 import type { VectorRepository } from './local-vector-repository.js';
+import { PrivateCopilotScopeResolver } from './private-copilot-scope.resolver.js';
 
 const MAX_RETRIEVED_CHUNKS = 6;
 const MAX_CONTEXT_CHARACTERS = 12_000;
@@ -34,6 +36,17 @@ export interface CourseCorpusScopeResolver {
     documentIds: readonly string[]
   ): Promise<{
     ownerId: string;
+    documentParseTokens: { documentId: string; parseToken: string }[];
+  }>;
+}
+
+export interface PrivateCopilotCorpusScopeResolver {
+  resolve(
+    ownerId: string,
+    documentIds: readonly string[]
+  ): Promise<{
+    ownerId: string;
+    courseId: string;
     documentParseTokens: { documentId: string; parseToken: string }[];
   }>;
 }
@@ -99,7 +112,9 @@ export class RagService {
     @Inject(RAG_TEXT_EMBEDDER) private readonly embedder: QueryTextEmbedder,
     @Inject(RAG_RESPONSE_GENERATOR) private readonly generator: RagResponseGenerator,
     private readonly firewall: CitationFirewall,
-    @Inject(RAG_CORPUS_SCOPE_RESOLVER) private readonly corpusScope: CourseCorpusScopeResolver
+    @Inject(RAG_CORPUS_SCOPE_RESOLVER) private readonly corpusScope: CourseCorpusScopeResolver,
+    @Inject(PrivateCopilotScopeResolver)
+    private readonly privateScope: PrivateCopilotCorpusScopeResolver
   ) {}
 
   async query(requestingUserId: string, request: RagQuery): Promise<RagResponse> {
@@ -107,6 +122,20 @@ export class RagService {
       throw new RangeError('An authenticated user is required.');
     const parsed = ragQuerySchema.parse(request);
     const corpus = await this.corpusScope.resolve(parsed.courseId, parsed.documentIds);
+    return this.executeQuery(parsed, corpus);
+  }
+
+  async queryPrivate(requestingUserId: string, request: CopilotQuery): Promise<RagResponse> {
+    if (requestingUserId.trim().length === 0)
+      throw new RangeError('An authenticated user is required.');
+    const corpus = await this.privateScope.resolve(requestingUserId, request.documentIds);
+    return this.executeQuery({ ...request, courseId: corpus.courseId }, corpus);
+  }
+
+  private async executeQuery(
+    parsed: RagQuery,
+    corpus: { ownerId: string; documentParseTokens: { documentId: string; parseToken: string }[] }
+  ): Promise<RagResponse> {
     const queryVector = await (this.embedder.embedQuery?.(parsed.question) ??
       this.embedder.embed(parsed.question));
     const retrieved = await this.vectors.search({

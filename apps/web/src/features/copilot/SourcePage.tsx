@@ -42,14 +42,19 @@ export function SourcePage() {
   const search = new URLSearchParams(location.search);
   const page = Number(pageNumber);
   const sessionId = search.get('session');
+  const scope = search.get('scope') === 'private' ? 'private' : 'course';
   const workspace = getCitationWorkspace(sessionId);
   const citation = getWorkspaceCitation(sessionId, search.get('citation'), documentId, page);
   const source = useQuery({
-    queryKey: ['document-page', documentId, page],
+    queryKey: ['document-page', scope, documentId, page],
     enabled: documentId !== undefined && Number.isInteger(page) && page > 0,
     retry: false,
     queryFn: () =>
-      apiClient.request<DocumentPage>(`/rag/documents/${documentId}/pages/${page}?courseId=MLN112`)
+      apiClient.request<DocumentPage>(
+        scope === 'private'
+          ? `/documents/${documentId}/pages/${page}`
+          : `/rag/documents/${documentId}/pages/${page}?courseId=MLN112`
+      )
   });
   const returnTo =
     sessionId === null ? '/copilot' : `/copilot?session=${encodeURIComponent(sessionId)}`;

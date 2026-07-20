@@ -79,23 +79,18 @@ Expected: PASS; successful refresh redirects to `/dashboard`, failed refresh ren
 
 Use one shared `PageState` message and keep all tests green.
 
-### Task 3: Add private document scope contracts and persistence fields
+### Task 3: Add private document scope contracts and persistence boundary
 
 **Files:**
-- Create: `packages/contracts/src/copilot.ts`
-- Modify: `packages/contracts/src/index.ts`
 - Modify: `packages/contracts/src/rag.ts`
-- Modify: `apps/api/src/documents/schemas/document.schema.ts`
-- Modify: `apps/api/src/rag/schemas/rag-chunk.schema.ts`
 - Modify: `apps/api/src/documents/documents.service.ts`
-- Test: `packages/contracts/src/copilot.test.ts`
-- Test: `apps/api/src/documents/documents.service.spec.ts`
+- Create: `apps/api/src/rag/private-copilot-scope.resolver.ts`
+- Test: `packages/contracts/src/rag.test.ts`
+- Test: `apps/api/src/rag/private-copilot-scope.resolver.spec.ts`
 
 - [ ] **Step 1: Write contract and persistence tests first**
 
-Define `privateCopilotDocumentSchema` with `id`, `title`, `status`, `mimeType`, `originalFileName`, `byteSize`, `pageCount`, `errorCode`, `errorMessage`, `createdAt`, and `updatedAt`; do not include `gridFsFileId`.
-
-Add a `corpusScope` field to `DocumentRecord` and `RagChunkRecord` with `'course' | 'private'`, defaulting legacy records to `'course'`. Keep `courseId` nullable for private records. Tests must prove private records have no course ID and contract parsing rejects internal storage IDs.
+Define the private query contract as `{ documentIds, mode, question }`; the browser cannot provide `ownerId` or a private corpus key. Keep document metadata free of internal GridFS identifiers.
 
 - [ ] **Step 2: Run the contract/service tests and verify red**
 
@@ -105,7 +100,7 @@ Expected: FAIL because the new schema and private scope are absent.
 
 - [ ] **Step 3: Implement the minimal scope fields and upload option**
 
-Extend `DocumentsService.upload` with an internal `corpusScope` argument that is not bound to request body data. Existing scanner/admin callers remain `'course'`; the Copilot controller will pass `'private'` and `courseId: null`.
+Use the existing document model and upload pipeline with a server-owned `COPILOT01` course key. The private resolver always adds the authenticated `ownerId`, `type: 'textbook'`, and ready/non-deleted filters, so the shared key cannot expose another user's records.
 
 - [ ] **Step 4: Run tests and verify green**
 
@@ -114,10 +109,9 @@ Run the commands from Step 2. Expected: PASS with existing document tests unchan
 ### Task 4: Implement owner-scoped private Copilot document API
 
 **Files:**
-- Create: `apps/api/src/copilot/copilot-documents.controller.ts`
-- Create: `apps/api/src/copilot/copilot-documents.service.ts`
-- Create: `apps/api/src/copilot/copilot.module.ts`
-- Modify: `apps/api/src/app.module.ts`
+- Create: `apps/api/src/rag/copilot-documents.controller.ts`
+- Create: `apps/api/src/rag/copilot-documents.controller.spec.ts`
+- Modify: `apps/api/src/rag/rag.module.ts`
 - Modify: `apps/api/src/documents/documents.service.ts`
 - Modify: `apps/api/src/documents/documents.controller.ts` to reuse the owner-scoped delete/status service methods without changing its public `/documents` contract
 - Test: `apps/api/src/copilot/copilot-documents.controller.spec.ts`
@@ -161,13 +155,9 @@ Expected: PASS, including cross-owner denial and validation errors.
 ### Task 5: Add private RAG ingestion and query boundaries
 
 **Files:**
-- Create: `apps/api/src/copilot/private-corpus-scope.resolver.ts`
-- Create: `apps/api/src/copilot/private-rag.service.ts`
-- Modify: `apps/api/src/rag/rag-ingestion.service.ts`
-- Modify: `apps/api/src/rag/local-vector-repository.ts`
-- Modify: `apps/api/src/rag/atlas-vector.repository.ts`
-- Modify: `apps/api/src/rag/local-vector-repository.ts` types/filter
-- Modify: `apps/api/src/copilot/copilot-documents.controller.ts` to add the private `POST /copilot/query` route
+- Modify: `apps/api/src/rag/private-copilot-scope.resolver.ts`
+- Modify: `apps/api/src/rag/rag.service.ts`
+- Modify: `apps/api/src/rag/copilot-documents.controller.ts` to add the private `POST /copilot/query` route
 - Modify: `packages/contracts/src/rag.ts`
 - Test: `apps/api/src/copilot/private-corpus-scope.resolver.spec.ts`
 - Test: `apps/api/src/copilot/private-rag.service.spec.ts`
@@ -175,7 +165,7 @@ Expected: PASS, including cross-owner denial and validation errors.
 
 - [ ] **Step 1: Write failing scope/query tests**
 
-Define private query input with only `{ documentIds, mode, question }`; assert the resolver requires every ID to be `ready`, `corpusScope: 'private'`, and owned by the requester. Assert the vector filter includes `ownerId` and `corpusScope: 'private'`.
+Define private query input with only `{ documentIds, mode, question }`; assert the resolver requires every ID to be ready and owned by the requester under `COPILOT01`. Assert retrieval includes the owner and server-controlled key in its filter.
 
 - [ ] **Step 2: Run focused tests and verify red**
 

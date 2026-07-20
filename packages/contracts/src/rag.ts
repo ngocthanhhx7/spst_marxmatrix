@@ -5,9 +5,17 @@ export const courseIdSchema = z
   .string()
   .trim()
   .regex(/^[A-Z]{2,12}\d{2,6}$/);
+/** Server-owned corpus key for documents uploaded by an individual Copilot user. */
+export const PERSONAL_COPILOT_COURSE_ID = 'COPILOT01' as const;
 export const ragModeSchema = z.enum(['query', 'outline', 'comparison', 'critique']);
 export const ragQuerySchema = z.object({
   courseId: courseIdSchema,
+  documentIds: z.array(objectIdSchema).min(1).max(10),
+  mode: ragModeSchema,
+  question: z.string().trim().min(3).max(2_000)
+});
+/** The owner is derived from the authenticated session; callers cannot select a corpus. */
+export const copilotQuerySchema = z.object({
   documentIds: z.array(objectIdSchema).min(1).max(10),
   mode: ragModeSchema,
   question: z.string().trim().min(3).max(2_000)
@@ -109,6 +117,7 @@ export const ragResponseSchema = z
 
 export type CourseId = z.infer<typeof courseIdSchema>;
 export type RagQuery = z.infer<typeof ragQuerySchema>;
+export type CopilotQuery = z.infer<typeof copilotQuerySchema>;
 export type RagCourseDocument = z.infer<typeof ragCourseDocumentSchema>;
 export type RagChunk = z.infer<typeof ragChunkSchema>;
 export type RetrievedChunk = z.infer<typeof retrievedChunkSchema>;

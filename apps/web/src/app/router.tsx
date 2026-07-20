@@ -4,6 +4,7 @@ import { AppShell } from '../shared/ui/AppShell.js';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute.js';
 import { AdminRoute } from '../features/auth/AdminRoute.js';
 import { GuestOnlyRoute } from '../features/auth/GuestOnlyRoute.js';
+import { SessionRestorationGate } from '../features/auth/SessionRestorationGate.js';
 import { DashboardPage } from '../features/dashboard/DashboardPage.js';
 const LandingPage = lazy(async () =>
   import('../features/landing/LandingPage.js').then((module) => ({ default: module.LandingPage }))
@@ -71,150 +72,152 @@ export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<AppShell />}>
-          <Route
-            index
-            element={
-              <LazyPage>
-                <LandingPage />
-              </LazyPage>
-            }
-          />
-          <Route element={<GuestOnlyRoute />}>
+        <Route element={<SessionRestorationGate />}>
+          <Route element={<AppShell />}>
             <Route
-              path="login"
+              index
               element={
                 <LazyPage>
-                  <LoginPage />
+                  <LandingPage />
                 </LazyPage>
               }
             />
+            <Route element={<GuestOnlyRoute />}>
+              <Route
+                path="login"
+                element={
+                  <LazyPage>
+                    <LoginPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="register"
+                element={
+                  <LazyPage>
+                    <RegisterPage />
+                  </LazyPage>
+                }
+              />
+            </Route>
+            <Route element={<ProtectedRoute />}>
+              <Route path="dashboard" element={<DashboardPage />} />
+              <Route
+                path="settings"
+                element={
+                  <LazyPage>
+                    <SettingsPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="scanner"
+                element={
+                  <LazyPage>
+                    <ScannerHistoryPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="scanner/new"
+                element={
+                  <LazyPage>
+                    <ScannerPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="scanner/extract"
+                element={
+                  <LazyPage>
+                    <DocumentExtractionPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="copilot"
+                element={
+                  <LazyPage>
+                    <CopilotPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="arena"
+                element={
+                  <LazyPage>
+                    <ArenaHubPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="arena/lobby/:code"
+                element={
+                  <LazyPage>
+                    <ArenaLobbyPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="arena/games/:id"
+                element={
+                  <LazyPage>
+                    <ArenaGamePage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="arena/games/:id/results"
+                element={
+                  <LazyPage>
+                    <ArenaResultsPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="arena/games/:id/replay"
+                element={
+                  <LazyPage>
+                    <ArenaReplayPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="documents/:documentId/pages/:pageNumber"
+                element={
+                  <LazyPage>
+                    <SourcePage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="scanner/:analysisId"
+                element={
+                  <LazyPage>
+                    <ScannerPage />
+                  </LazyPage>
+                }
+              />
+            </Route>
+            <Route element={<AdminRoute />}>
+              <Route
+                path="admin/documents"
+                element={
+                  <LazyPage>
+                    <AdminDocumentsPage />
+                  </LazyPage>
+                }
+              />
+            </Route>
             <Route
-              path="register"
+              path="*"
               element={
                 <LazyPage>
-                  <RegisterPage />
+                  <NotFoundPage />
                 </LazyPage>
               }
             />
           </Route>
-          <Route element={<ProtectedRoute />}>
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route
-              path="settings"
-              element={
-                <LazyPage>
-                  <SettingsPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="scanner"
-              element={
-                <LazyPage>
-                  <ScannerHistoryPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="scanner/new"
-              element={
-                <LazyPage>
-                  <ScannerPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="scanner/extract"
-              element={
-                <LazyPage>
-                  <DocumentExtractionPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="copilot"
-              element={
-                <LazyPage>
-                  <CopilotPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="arena"
-              element={
-                <LazyPage>
-                  <ArenaHubPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="arena/lobby/:code"
-              element={
-                <LazyPage>
-                  <ArenaLobbyPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="arena/games/:id"
-              element={
-                <LazyPage>
-                  <ArenaGamePage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="arena/games/:id/results"
-              element={
-                <LazyPage>
-                  <ArenaResultsPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="arena/games/:id/replay"
-              element={
-                <LazyPage>
-                  <ArenaReplayPage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="documents/:documentId/pages/:pageNumber"
-              element={
-                <LazyPage>
-                  <SourcePage />
-                </LazyPage>
-              }
-            />
-            <Route
-              path="scanner/:analysisId"
-              element={
-                <LazyPage>
-                  <ScannerPage />
-                </LazyPage>
-              }
-            />
-          </Route>
-          <Route element={<AdminRoute />}>
-            <Route
-              path="admin/documents"
-              element={
-                <LazyPage>
-                  <AdminDocumentsPage />
-                </LazyPage>
-              }
-            />
-          </Route>
-          <Route
-            path="*"
-            element={
-              <LazyPage>
-                <NotFoundPage />
-              </LazyPage>
-            }
-          />
         </Route>
       </Routes>
     </BrowserRouter>

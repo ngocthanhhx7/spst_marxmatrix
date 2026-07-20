@@ -115,6 +115,18 @@ export class DocumentsService {
     ).map((item) => this.metadata(item));
   }
 
+  async listForCourse(ownerId: string, courseId: string): Promise<DocumentMetadata[]> {
+    return (
+      await this.documents
+        .find({
+          ownerId: this.ownerObjectId(ownerId),
+          courseId,
+          deletionState: 'active'
+        })
+        .sort({ updatedAt: -1 })
+    ).map((item) => this.metadata(item));
+  }
+
   async detail(ownerId: string, id: string): Promise<DocumentMetadata> {
     return this.metadata(await this.owned(ownerId, id, false));
   }

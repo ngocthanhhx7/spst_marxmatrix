@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useLocation } from 'react-router';
 import { copilotApi, type RagMode, type RagResponse } from './copilot.api.js';
+import type { PrivateCopilotDocument } from './copilot.types.js';
 import { CitationLink } from './CitationLink.js';
 import { createCitationWorkspace, getCitationWorkspace } from './citation-workspace.js';
 import './CopilotPage.css';
@@ -102,17 +103,65 @@ export function CopilotPage() {
   const [selected, setSelected] = useState<string[]>(restored?.input.documentIds ?? []);
   const [sessionId, setSessionId] = useState<string | undefined>(restored?.id);
   const [notice, setNotice] = useState<string | undefined>();
+  const [uploadFile, setUploadFile] = useState<File | undefined>();
   const documents = useQuery({
     queryKey: ['rag-documents', 'MLN112'],
     queryFn: copilotApi.availableDocuments,
     retry: false
   });
+  const privateDocuments = useQuery({
+    queryKey: ['copilot-private-documents'],
+    queryFn: copilotApi.privateDocuments,
+    retry: false,
+    refetchInterval: (query) =>
+      Array.isArray(query.state.data) &&
+      query.state.data.some((document) =>
+        ['uploaded', 'parsing', 'embedding'].includes(document.status)
+      )
+        ? 3000
+        : false
+  });
+  const upload = useMutation({
+    mutationFn: copilotApi.uploadDocument,
+    onSuccess: async () => {
+      setUploadFile(undefined);
+      setNotice('Đã nhận tài liệu. Hệ thống đang trích xuất và lập chỉ mục.');
+      await privateDocuments.refetch();
+    },
+    onError: () => setNotice('Chưa thể tải tài liệu lên. Vui lòng kiểm tra PDF và thử lại.')
+  });
+  const remove = useMutation({
+    mutationFn: copilotApi.deleteDocument,
+    onSuccess: async (_result, documentId) => {
+      setSelected((items) => items.filter((id) => id !== documentId));
+      await privateDocuments.refetch();
+    }
+  });
   const ask = useMutation({
-    mutationFn: copilotApi.ask,
+    mutationFn: (
+      input:
+        | {
+            scope: 'course';
+            courseId: string;
+            documentIds: string[];
+            mode: RagMode;
+            question: string;
+          }
+        | { scope: 'private'; documentIds: string[]; mode: RagMode; question: string }
+    ) => (input.scope === 'private' ? copilotApi.askPrivate(input) : copilotApi.ask(input)),
     onSuccess: (response, input) => setSessionId(createCitationWorkspace({ input, response }))
   });
   const response = restored?.response ?? ask.data;
   const activeSession = restored?.id ?? sessionId;
+  const privateDocumentList = Array.isArray(privateDocuments.data)
+    ? privateDocuments.data.filter((document) => typeof document.status === 'string')
+    : [];
+  const privateDocumentIds = new Set(privateDocumentList.map((document) => document.id));
+  const selectedPrivate = selected.filter((id) => privateDocumentIds.has(id));
+  const selectedCourse = selected.filter((id) => !privateDocumentIds.has(id));
+  const selectedPrivateNotReady = privateDocumentList.some(
+    (document) => selectedPrivate.includes(document.id) && document.status !== 'ready'
+  );
 
   function submit() {
     const trimmed = question.trim();
@@ -124,9 +173,26 @@ export function CopilotPage() {
       setNotice('Hãy chọn ít nhất một tài liệu nguồn trước khi gửi.');
       return;
     }
+    if (selectedPrivate.length > 0 && selectedCourse.length > 0) {
+      setNotice('Hãy chọn tài liệu khóa học hoặc tài liệu riêng, không trộn hai phạm vi.');
+      return;
+    }
+    if (selectedPrivateNotReady) {
+      setNotice('Tài liệu riêng chưa sẵn sàng để truy xuất.');
+      return;
+    }
     setNotice(undefined);
     setSessionId(undefined);
-    ask.mutate({ courseId: 'MLN112', documentIds: selected, mode, question: trimmed });
+    if (selectedPrivate.length > 0)
+      ask.mutate({ scope: 'private', documentIds: selectedPrivate, mode, question: trimmed });
+    else
+      ask.mutate({
+        scope: 'course',
+        courseId: 'MLN112',
+        documentIds: selectedCourse,
+        mode,
+        question: trimmed
+      });
   }
   function cancel() {
     setQuestion('');
@@ -156,6 +222,84 @@ export function CopilotPage() {
               disabled={documents.isLoading || documents.isError}
             />
           </label>
+          <form
+            className="copilot__upload"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (uploadFile === undefined) {
+                setNotice('Chọn một tệp PDF trước khi tải lên.');
+                return;
+              }
+              setNotice(undefined);
+              upload.mutate({ file: uploadFile, title: uploadFile.name.replace(/\.pdf$/i, '') });
+            }}
+          >
+            <label htmlFor="copilot-upload-file">Tải tài liệu lên Copilot</label>
+            <input
+              id="copilot-upload-file"
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={(event) => setUploadFile(event.target.files?.[0])}
+            />
+            <button type="submit" disabled={upload.isPending || uploadFile === undefined}>
+              {upload.isPending ? 'Đang tải lên…' : 'Tải tài liệu lên'}
+            </button>
+            <p className="copilot__muted">PDF riêng tư · chỉ tài khoản của bạn được truy xuất.</p>
+          </form>
+          {privateDocuments.isError && (
+            <p className="copilot__alert" role="alert">
+              Không thể tải danh sách tài liệu riêng.
+            </p>
+          )}
+          {privateDocumentList.length > 0 && (
+            <div className="copilot__private-sources">
+              <p className="copilot__index">TÀI LIỆU RIÊNG</p>
+              {privateDocumentList.map((document: PrivateCopilotDocument) => {
+                const ready = document.status === 'ready';
+                return (
+                  <div className="copilot__private-row" key={document.id}>
+                    <label
+                      className="copilot__source-row"
+                      data-selected={selected.includes(document.id)}
+                      data-ready={ready}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(document.id)}
+                        disabled={!ready}
+                        onChange={() =>
+                          setSelected((items) =>
+                            items.includes(document.id)
+                              ? items.filter((id) => id !== document.id)
+                              : [...items, document.id]
+                          )
+                        }
+                      />
+                      <span>
+                        <strong>{document.title}</strong>
+                        <small>
+                          {document.status === 'ready'
+                            ? `${document.pageCount} trang · sẵn sàng truy xuất`
+                            : document.status === 'failed'
+                              ? 'Không thể xử lý · thử lại bằng tệp khác'
+                              : 'Đang xử lý · chưa thể truy xuất'}
+                        </small>
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      className="copilot__private-delete"
+                      aria-label={`Xóa ${document.title}`}
+                      disabled={remove.isPending}
+                      onClick={() => remove.mutate(document.id)}
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {documents.isLoading && <p className="copilot__muted">Đang tải danh sách tài liệu…</p>}
           {documents.isError && (
             <>
@@ -168,7 +312,7 @@ export function CopilotPage() {
           {documents.data?.length === 0 && (
             <p className="copilot__muted">Chưa có tài liệu nào để truy xuất.</p>
           )}
-          <div className="copilot__source-list">
+          <div className="copilot__source-list" aria-label="Tài liệu khóa học">
             {documents.data?.map((document) => (
               <label
                 className="copilot__source-row"
@@ -235,7 +379,7 @@ export function CopilotPage() {
               <button type="button" onClick={cancel}>
                 Huỷ
               </button>
-              <button type="submit" disabled={ask.isPending}>
+              <button type="submit" disabled={ask.isPending || selectedPrivateNotReady}>
                 {ask.isPending ? 'Đang gửi…' : 'Gửi câu hỏi'}
               </button>
             </div>

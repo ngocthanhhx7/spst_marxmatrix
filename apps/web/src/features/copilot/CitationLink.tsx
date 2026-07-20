@@ -1,8 +1,10 @@
 import { Link } from 'react-router';
 import type { Citation } from './copilot.types.js';
+import { getCitationWorkspace } from './citation-workspace.js';
 
 export function citationHref(citation: Citation, sessionId: string) {
-  return `/documents/${citation.documentId}/pages/${citation.pageStart}?${new URLSearchParams({ citation: citation.chunkId, source: 'copilot', session: sessionId }).toString()}`;
+  const scope = getCitationWorkspace(sessionId)?.input.scope ?? 'course';
+  return `/documents/${citation.documentId}/pages/${citation.pageStart}?${new URLSearchParams({ citation: citation.chunkId, source: 'copilot', session: sessionId, scope }).toString()}`;
 }
 export function CitationLink({
   citation,
