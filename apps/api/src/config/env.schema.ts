@@ -15,10 +15,32 @@ function isUnsafeProductionSecret(secret: string): boolean {
   return secret.length < 32 || unsafeSecretTerms.some((term) => normalized.includes(term));
 }
 
-function isLocalMongoUri(uri: string): boolean {
-  return /^mongodb(?:\+srv)?:\/\/(?:[^@/]+@)?(?:localhost|127\.0\.0\.1|::1|\[::1\])(?::|\/|$)/i.test(
-    uri
-  );
+function mongoAuthorityHosts(uri: string): string[] {
+  const authority = /^mongodb(?:\+srv)?:\/\/([^/?#]*)/i.exec(uri)?.[1];
+  if (!authority) return [];
+
+  const hosts = authority.slice(authority.lastIndexOf('@') + 1).split(',');
+  return hosts.map((host) => {
+    const trimmed = host.trim();
+    if (trimmed.startsWith('[')) {
+      const closingBracket = trimmed.indexOf(']');
+      return closingBracket === -1 ? '' : trimmed.slice(1, closingBracket);
+    }
+    return trimmed.split(':', 1)[0] ?? '';
+  });
+}
+
+function isLoopbackMongoHost(host: string): boolean {
+  return ['localhost', '127.0.0.1', '::1'].includes(host.toLowerCase());
+}
+
+function hasLoopbackMongoHost(uri: string): boolean {
+  return mongoAuthorityHosts(uri).some(isLoopbackMongoHost);
+}
+
+function hasSingleLoopbackMongoHost(uri: string): boolean {
+  const hosts = mongoAuthorityHosts(uri);
+  return hosts.length === 1 && isLoopbackMongoHost(hosts[0] ?? '');
 }
 
 const baseEnvironmentSchema = z.object({
@@ -84,18 +106,33 @@ export const environmentSchema = baseEnvironmentSchema.superRefine((environment,
         path: ['AI_PROVIDER'],
         message: 'AI_PROVIDER must not be mock in production.'
       });
-    if (!environment.ALLOW_SELF_HOSTED_PRODUCTION && environment.RAG_VECTOR_PROVIDER !== 'atlas')
-      context.addIssue({
-        code: 'custom',
-        path: ['RAG_VECTOR_PROVIDER'],
-        message: 'RAG_VECTOR_PROVIDER must be atlas in production.'
-      });
-    if (!environment.ALLOW_SELF_HOSTED_PRODUCTION && isLocalMongoUri(environment.MONGODB_URI))
-      context.addIssue({
-        code: 'custom',
-        path: ['MONGODB_URI'],
-        message: 'MONGODB_URI must not target localhost in production.'
-      });
+    if (environment.ALLOW_SELF_HOSTED_PRODUCTION) {
+      if (environment.RAG_VECTOR_PROVIDER !== 'local')
+        context.addIssue({
+          code: 'custom',
+          path: ['RAG_VECTOR_PROVIDER'],
+          message: 'RAG_VECTOR_PROVIDER must be local for self-hosted production.'
+        });
+      if (!hasSingleLoopbackMongoHost(environment.MONGODB_URI))
+        context.addIssue({
+          code: 'custom',
+          path: ['MONGODB_URI'],
+          message: 'MONGODB_URI must target exactly one loopback host for self-hosted production.'
+        });
+    } else {
+      if (environment.RAG_VECTOR_PROVIDER !== 'atlas')
+        context.addIssue({
+          code: 'custom',
+          path: ['RAG_VECTOR_PROVIDER'],
+          message: 'RAG_VECTOR_PROVIDER must be atlas in production.'
+        });
+      if (hasLoopbackMongoHost(environment.MONGODB_URI))
+        context.addIssue({
+          code: 'custom',
+          path: ['MONGODB_URI'],
+          message: 'MONGODB_URI must not target localhost in production.'
+        });
+    }
     if (isUnsafeProductionSecret(environment.JWT_ACCESS_SECRET))
       context.addIssue({
         code: 'custom',

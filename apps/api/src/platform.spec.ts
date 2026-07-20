@@ -162,6 +162,48 @@ describe('API platform', () => {
     });
   });
   it.each([
+    [
+      'loopback MongoDB with Atlas vectors',
+      { RAG_VECTOR_PROVIDER: 'atlas' },
+      ['RAG_VECTOR_PROVIDER']
+    ],
+    [
+      'remote MongoDB with local vectors',
+      { MONGODB_URI: 'mongodb://db.example:27017/marxmatrix' },
+      ['MONGODB_URI']
+    ],
+    [
+      'remote MongoDB with Atlas vectors',
+      {
+        MONGODB_URI: 'mongodb://db.example:27017/marxmatrix',
+        RAG_VECTOR_PROVIDER: 'atlas'
+      },
+      ['MONGODB_URI', 'RAG_VECTOR_PROVIDER']
+    ]
+  ])(
+    'rejects self-hosted production topology with %s',
+    (_description, override, expectedFields) => {
+      expectedFields.forEach((field) => {
+        expect(() =>
+          parseEnvironment({
+            ...selfHostedProductionEnvironment,
+            ALLOW_SELF_HOSTED_PRODUCTION: 'true',
+            ...override
+          })
+        ).toThrow(new RegExp(field));
+      });
+    }
+  );
+  it('rejects replica-set MongoDB authorities containing a loopback host in default production', () => {
+    expect(() =>
+      parseEnvironment({
+        ...selfHostedProductionEnvironment,
+        RAG_VECTOR_PROVIDER: 'atlas',
+        MONGODB_URI: 'mongodb://db.example:27017,localhost:27017/marxmatrix'
+      })
+    ).toThrow(/MONGODB_URI/);
+  });
+  it.each([
     ['DEMO_MODE', { DEMO_MODE: 'true' }],
     ['AI_PROVIDER', { AI_PROVIDER: 'mock' }],
     ['GEMINI_API_KEY', { GEMINI_API_KEY: '' }],
@@ -177,22 +219,16 @@ describe('API platform', () => {
       'JWT_REFRESH_SECRET',
       { JWT_REFRESH_SECRET: 'placeholder-refresh-secret-that-is-over-thirty-two-characters' }
     ],
-    [
-      'AUTH_COOKIE_SAME_SITE',
-      { AUTH_COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'false' }
-    ]
-  ])(
-    'keeps the %s production safeguard with self-hosted opt-in',
-    (expectedField, override) => {
-      expect(() =>
-        parseEnvironment({
-          ...selfHostedProductionEnvironment,
-          ALLOW_SELF_HOSTED_PRODUCTION: 'true',
-          ...override
-        })
-      ).toThrow(new RegExp(expectedField));
-    }
-  );
+    ['AUTH_COOKIE_SAME_SITE', { AUTH_COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'false' }]
+  ])('keeps the %s production safeguard with self-hosted opt-in', (expectedField, override) => {
+    expect(() =>
+      parseEnvironment({
+        ...selfHostedProductionEnvironment,
+        ALLOW_SELF_HOSTED_PRODUCTION: 'true',
+        ...override
+      })
+    ).toThrow(new RegExp(expectedField));
+  });
   it('treats a copied blank Gemini key as absent in demo mode', () => {
     expect(
       parseEnvironment({ ...demoEnvironment, GEMINI_API_KEY: '   ' }).GEMINI_API_KEY
