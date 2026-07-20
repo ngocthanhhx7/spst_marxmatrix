@@ -27,6 +27,9 @@ type GeminiEmbeddingResponse = { embeddings?: { values?: number[] }[] };
 type GeminiEmbeddingContent = { role: 'user'; parts: { text: string }[] };
 
 const GEMINI_EMBEDDING_BATCH_SIZE = 32;
+const GEMINI_QUOTA_FALLBACK_DELAY_MS = 60_000;
+const GEMINI_RETRY_DELAY_BUFFER_MS = 250;
+const GEMINI_MAX_RETRY_DELAY_MS = 65_000;
 
 export interface GeminiRagClient {
   models: {
@@ -263,11 +266,39 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
         if (signal?.aborted) throw operationAborted();
         return await action();
       } catch (error: unknown) {
+        const providerDelay = providerRetryDelayMs(error);
         const classified = classify(error, operation);
         if (!isRetryable(classified) || attempt >= this.options.maxRetries) throw classified;
-        await this.sleep(Math.min(250 * 2 ** attempt, 2_000));
+        const backoff = Math.min(250 * 2 ** attempt, 2_000);
+        const quotaFallback = providerStatus(error) === 429 ? GEMINI_QUOTA_FALLBACK_DELAY_MS : 0;
+        await this.waitBeforeRetry(
+          Math.min(
+            Math.max(backoff, providerDelay ?? quotaFallback),
+            GEMINI_MAX_RETRY_DELAY_MS
+          ),
+          signal
+        );
         attempt += 1;
       }
+    }
+  }
+
+  private async waitBeforeRetry(
+    milliseconds: number,
+    signal: AbortSignal | undefined
+  ): Promise<void> {
+    if (signal === undefined) return this.sleep(milliseconds);
+    if (signal.aborted) throw operationAborted();
+    let rejectAbort: ((error: DomainError) => void) | undefined;
+    const abort = new Promise<never>((_resolve, reject) => {
+      rejectAbort = reject;
+    });
+    const abortWait = () => rejectAbort?.(operationAborted());
+    signal.addEventListener('abort', abortWait, { once: true });
+    try {
+      await Promise.race([this.sleep(milliseconds), abort]);
+    } finally {
+      signal.removeEventListener('abort', abortWait);
     }
   }
 
@@ -408,10 +439,7 @@ function operationAborted(): DomainError {
 
 function classify(error: unknown, operation: 'embedding' | 'generation'): DomainError {
   if (error instanceof DomainError) return error;
-  const status =
-    typeof error === 'object' && error !== null && 'status' in error
-      ? (error as { status?: unknown }).status
-      : undefined;
+  const status = providerStatus(error);
   if (status === 401 || status === 403)
     return new DomainError('RAG_AI_AUTH_FAILED', 'Grounded Copilot authentication failed.', 503);
   if (status === 429 || (typeof status === 'number' && status >= 500 && status <= 599))
@@ -425,6 +453,24 @@ function classify(error: unknown, operation: 'embedding' | 'generation'): Domain
     `Grounded Copilot ${operation} request failed.`,
     503
   );
+}
+
+function providerStatus(error: unknown): unknown {
+  return typeof error === 'object' && error !== null && 'status' in error
+    ? (error as { status?: unknown }).status
+    : undefined;
+}
+
+function providerRetryDelayMs(error: unknown): number | null {
+  if (providerStatus(error) !== 429) return null;
+  const message =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? (error as { message?: unknown }).message
+      : undefined;
+  if (typeof message !== 'string') return null;
+  const seconds = Number.parseFloat(/Please retry in ([0-9]+(?:\.[0-9]+)?)s/i.exec(message)?.[1] ?? '');
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  return Math.ceil(seconds * 1_000) + GEMINI_RETRY_DELAY_BUFFER_MS;
 }
 
 function isRetryable(error: DomainError): boolean {

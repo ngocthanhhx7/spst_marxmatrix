@@ -305,6 +305,27 @@ describe('GeminiRagProvider', () => {
     expect(sleep).toHaveBeenCalledWith(250);
   });
 
+  it('honors the Gemini retry delay when embedding quota is exhausted', async () => {
+    const embedContent = vi
+      .fn<GeminiRagClient['models']['embedContent']>()
+      .mockRejectedValueOnce({
+        status: 429,
+        message:
+          '{"error":{"status":"RESOURCE_EXHAUSTED","details":[{"retryDelay":"1.5s"}]}} Please retry in 1.5s.'
+      })
+      .mockResolvedValueOnce({
+        embeddings: [{ values: new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0.25) }]
+      });
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      provider(client({ embedContent }), { maxRetries: 1, sleep }).embed('document')
+    ).resolves.toHaveLength(RAG_EMBEDDING_DIMENSION);
+
+    expect(embedContent).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(1_750);
+  });
+
   it('maps timeout and malformed structured output to stable public failures', async () => {
     const hanging = client({
       generateContent: vi.fn<GeminiRagClient['models']['generateContent']>(
