@@ -170,6 +170,14 @@ describe('API platform', () => {
     ['JWT_ACCESS_SECRET', { JWT_ACCESS_SECRET: 'short-secret' }],
     ['JWT_REFRESH_SECRET', { JWT_REFRESH_SECRET: 'short-secret' }],
     [
+      'JWT_ACCESS_SECRET',
+      { JWT_ACCESS_SECRET: 'change-me-access-secret-that-is-over-thirty-two-characters' }
+    ],
+    [
+      'JWT_REFRESH_SECRET',
+      { JWT_REFRESH_SECRET: 'placeholder-refresh-secret-that-is-over-thirty-two-characters' }
+    ],
+    [
       'AUTH_COOKIE_SAME_SITE',
       { AUTH_COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'false' }
     ]
