@@ -38,7 +38,8 @@ function hasLoopbackMongoHost(uri: string): boolean {
   return mongoAuthorityHosts(uri).some(isLoopbackMongoHost);
 }
 
-function hasSingleLoopbackMongoHost(uri: string): boolean {
+function hasSingleStandardLoopbackMongoHost(uri: string): boolean {
+  if (!uri.startsWith('mongodb://')) return false;
   const hosts = mongoAuthorityHosts(uri);
   return hosts.length === 1 && isLoopbackMongoHost(hosts[0] ?? '');
 }
@@ -113,7 +114,7 @@ export const environmentSchema = baseEnvironmentSchema.superRefine((environment,
           path: ['RAG_VECTOR_PROVIDER'],
           message: 'RAG_VECTOR_PROVIDER must be local for self-hosted production.'
         });
-      if (!hasSingleLoopbackMongoHost(environment.MONGODB_URI))
+      if (!hasSingleStandardLoopbackMongoHost(environment.MONGODB_URI))
         context.addIssue({
           code: 'custom',
           path: ['MONGODB_URI'],

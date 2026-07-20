@@ -162,6 +162,30 @@ describe('API platform', () => {
     });
   });
   it.each([
+    'mongodb://user:pass@localhost:27017/marxmatrix',
+    'mongodb://user:pass@[::1]:27017/marxmatrix'
+  ])('permits standard self-hosted MongoDB URI %s', (mongodbUri) => {
+    expect(
+      parseEnvironment({
+        ...selfHostedProductionEnvironment,
+        ALLOW_SELF_HOSTED_PRODUCTION: 'true',
+        MONGODB_URI: mongodbUri
+      }).MONGODB_URI
+    ).toBe(mongodbUri);
+  });
+  it.each(['mongodb+srv://localhost/marxmatrix', 'mongodb+srv://127.0.0.1/marxmatrix'])(
+    'rejects SRV URI %s for self-hosted production',
+    (mongodbUri) => {
+      expect(() =>
+        parseEnvironment({
+          ...selfHostedProductionEnvironment,
+          ALLOW_SELF_HOSTED_PRODUCTION: 'true',
+          MONGODB_URI: mongodbUri
+        })
+      ).toThrow(/MONGODB_URI/);
+    }
+  );
+  it.each([
     [
       'loopback MongoDB with Atlas vectors',
       { RAG_VECTOR_PROVIDER: 'atlas' },
