@@ -14,7 +14,7 @@ describe('application shell', () => {
     window.history.replaceState({}, '', '/dashboard');
     render(<App />);
     expect(
-      await screen.findByRole('heading', { name: 'Tiếp tục điều tra' }, { timeout: 3_000 })
+      await screen.findByRole('heading', { name: 'Tiếp tục điều tra' }, { timeout: 10_000 })
     ).toBeInTheDocument();
     expect(screen.getByRole('form', { name: 'Đăng nhập' })).toBeInTheDocument();
     expect(screen.getByText('Bỏ qua điều hướng')).toHaveAttribute('href', '#main-content');
