@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   JobHandlerFailure,
   JobHandlerRegistry,
@@ -15,6 +15,7 @@ const leasedJob = {
 };
 
 describe('WorkerRunner', () => {
+  afterEach(() => vi.useRealTimers());
   it('runs only an allow-listed handler and completes the held lease', async () => {
     const handled: string[] = [];
     const registry = new JobHandlerRegistry();
@@ -121,6 +122,25 @@ describe('WorkerRunner', () => {
     worker.start(60_000);
     await Promise.resolve();
     await expect(worker.stop()).resolves.toBeUndefined();
+  });
+
+  it('claims the next available job before the idle polling delay', async () => {
+    vi.useFakeTimers();
+    const registry = new JobHandlerRegistry();
+    registry.register({ type: 'parse_pdf', handle: async () => undefined } satisfies JobHandler);
+    const claimed = [leasedJob, { ...leasedJob, leaseToken: 'lease-two' }, null];
+    const jobs = {
+      claim: vi.fn(async () => claimed.shift() ?? null),
+      complete: async () => undefined,
+      fail: async () => undefined,
+      renew: async () => undefined
+    };
+    const worker = new WorkerRunner(jobs as never, registry, 'worker-test');
+
+    worker.start(10_000);
+    await vi.waitFor(() => expect(jobs.claim).toHaveBeenCalledTimes(3));
+    expect(vi.getTimerCount()).toBe(1);
+    await worker.stop();
   });
 
   it('aborts an active handler on graceful stop without completing a lease after shutdown', async () => {

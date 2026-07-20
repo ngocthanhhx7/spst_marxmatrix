@@ -7,6 +7,21 @@ import { CitationLink } from './CitationLink.js';
 import { createCitationWorkspace, getCitationWorkspace } from './citation-workspace.js';
 import './CopilotPage.css';
 
+function documentStatusMessage(document: PrivateCopilotDocument): string {
+  if (document.status === 'ready') return `${document.pageCount} trang · sẵn sàng truy xuất`;
+  if (document.status !== 'failed') return 'Đang xử lý · chưa thể truy xuất';
+  switch (document.errorCode) {
+    case 'OCR_UNSUPPORTED':
+      return 'PDF quét ảnh chưa có lớp chữ tìm kiếm · hãy chạy OCR hoặc dùng PDF văn bản.';
+    case 'PDF_PARSE_FAILED':
+      return 'PDF có thể được bảo vệ hoặc không tương thích · hãy xuất lại tệp không mật khẩu.';
+    case 'EMBEDDING_FAILED':
+      return 'Không thể lập chỉ mục nguồn · hãy thử lại sau hoặc liên hệ quản trị viên.';
+    default:
+      return 'Không thể xử lý tài liệu · hãy thử lại bằng tệp khác.';
+  }
+}
+
 function CitationRail({
   response,
   sessionId
@@ -275,15 +290,9 @@ export function CopilotPage() {
                           )
                         }
                       />
-                      <span>
+                      <span className="copilot__source-copy">
                         <strong>{document.title}</strong>
-                        <small>
-                          {document.status === 'ready'
-                            ? `${document.pageCount} trang · sẵn sàng truy xuất`
-                            : document.status === 'failed'
-                              ? 'Không thể xử lý · thử lại bằng tệp khác'
-                              : 'Đang xử lý · chưa thể truy xuất'}
-                        </small>
+                        <small>{documentStatusMessage(document)}</small>
                       </span>
                     </label>
                     <button

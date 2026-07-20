@@ -28,7 +28,7 @@ export class RagIngestionService {
       document === null ||
       document.courseId === null ||
       document.parsedPageToken === null ||
-      !['parsed', 'embedding', 'ready'].includes(document.status)
+      !this.isIndexable(document.status, document.errorCode)
     )
       throw this.documentNotReady();
     const claim = await this.documents
@@ -37,7 +37,11 @@ export class RagIngestionService {
           _id: document._id,
           courseId: document.courseId,
           parsedPageToken: document.parsedPageToken,
-          deletionState: 'active'
+          deletionState: 'active',
+          $or: [
+            { status: { $in: ['parsed', 'embedding', 'ready'] } },
+            { status: 'failed', errorCode: 'EMBEDDING_FAILED' }
+          ]
         },
         { $set: { status: 'embedding', errorCode: null, errorMessage: null } },
         { returnDocument: 'after' }
@@ -47,77 +51,124 @@ export class RagIngestionService {
     const courseId = claim.courseId;
     const parseToken = claim.parsedPageToken;
     if (courseId === null || parseToken === null) throw this.documentNotReady();
-    const pages = await this.pages
-      .find({ documentId: claim._id, parseToken })
-      .sort({ pageNumber: 1, _id: 1 });
-    const drafts = chunkDocumentPages(
-      pages.map((page) => ({ pageNumber: page.pageNumber, text: page.text }))
-    );
-    if (drafts.length === 0)
-      throw new DomainError('RAG_DOCUMENT_EMPTY', 'The document has no indexable text.', 422);
-    const embeddings = await Promise.all(drafts.map((draft) => this.embedder.embed(draft.text)));
-    const stillCurrent = await this.documents.exists({
-      _id: claim._id,
-      courseId,
-      parsedPageToken: parseToken,
-      deletionState: 'active'
-    });
-    if (stillCurrent === null) throw this.documentNotReady();
-    await this.chunks.bulkWrite(
-      drafts.map((draft, index) => {
-        const embedding = embeddings[index];
-        if (
-          embedding === undefined ||
-          embedding.length !== RAG_EMBEDDING_DIMENSION ||
-          embedding.some((value) => !Number.isFinite(value))
-        )
-          throw new DomainError(
-            'RAG_EMBEDDING_INVALID',
-            'Embedding output is incompatible with the configured vector index.',
-            502
-          );
-        return {
-          updateOne: {
-            filter: {
-              ownerId: claim.ownerId,
-              courseId,
-              documentId: claim._id,
-              parseToken,
-              checksum: draft.checksum
-            },
-            update: {
-              $set: {
-                ownerId: claim.ownerId,
-                courseId,
-                documentId: claim._id,
-                parseToken,
-                pageStart: draft.pageStart,
-                pageEnd: draft.pageEnd,
-                text: draft.text,
-                checksum: draft.checksum,
-                embedding
-              }
-            },
-            upsert: true
-          }
-        };
-      })
-    );
-    await this.chunks.deleteMany({
-      documentId: claim._id,
-      parseToken,
-      checksum: { $nin: drafts.map((draft) => draft.checksum) }
-    });
-    const completed = await this.documents.updateOne(
-      {
+    try {
+      const pages = await this.pages
+        .find({ documentId: claim._id, parseToken })
+        .sort({ pageNumber: 1, _id: 1 });
+      const drafts = chunkDocumentPages(
+        pages.map((page) => ({ pageNumber: page.pageNumber, text: page.text }))
+      );
+      if (drafts.length === 0)
+        throw new DomainError('RAG_DOCUMENT_EMPTY', 'The document has no indexable text.', 422);
+      const embeddings = await this.embedInOrder(drafts.map((draft) => draft.text));
+      const stillCurrent = await this.documents.exists({
         _id: claim._id,
         courseId,
         parsedPageToken: parseToken,
         deletionState: 'active'
-      },
-      { $set: { status: 'ready', errorCode: null, errorMessage: null } }
+      });
+      if (stillCurrent === null) throw this.documentNotReady();
+      await this.chunks.bulkWrite(
+        drafts.map((draft, index) => {
+          const embedding = embeddings[index];
+          if (
+            embedding === undefined ||
+            embedding.length !== RAG_EMBEDDING_DIMENSION ||
+            embedding.some((value) => !Number.isFinite(value))
+          )
+            throw new DomainError(
+              'RAG_EMBEDDING_INVALID',
+              'Embedding output is incompatible with the configured vector index.',
+              502
+            );
+          return {
+            updateOne: {
+              filter: {
+                ownerId: claim.ownerId,
+                courseId,
+                documentId: claim._id,
+                parseToken,
+                checksum: draft.checksum
+              },
+              update: {
+                $set: {
+                  ownerId: claim.ownerId,
+                  courseId,
+                  documentId: claim._id,
+                  parseToken,
+                  pageStart: draft.pageStart,
+                  pageEnd: draft.pageEnd,
+                  text: draft.text,
+                  checksum: draft.checksum,
+                  embedding
+                }
+              },
+              upsert: true
+            }
+          };
+        })
+      );
+      await this.chunks.deleteMany({
+        documentId: claim._id,
+        parseToken,
+        checksum: { $nin: drafts.map((draft) => draft.checksum) }
+      });
+      const completed = await this.documents.updateOne(
+        {
+          _id: claim._id,
+          courseId,
+          parsedPageToken: parseToken,
+          deletionState: 'active',
+          status: 'embedding'
+        },
+        { $set: { status: 'ready', errorCode: null, errorMessage: null } }
+      );
+      if (completed.matchedCount === 0) throw this.documentNotReady();
+    } catch (error: unknown) {
+      try {
+        await this.documents.updateOne(
+          {
+            _id: claim._id,
+            courseId,
+            parsedPageToken: parseToken,
+            deletionState: 'active',
+            status: 'embedding'
+          },
+          {
+            $set: {
+              status: 'failed',
+              errorCode: 'EMBEDDING_FAILED',
+              errorMessage: 'Document indexing could not be completed.'
+            }
+          }
+        );
+      } catch {
+        // Preserve the original indexing failure for queue retry classification.
+      }
+      throw error;
+    }
+  }
+
+  private isIndexable(status: string, errorCode: string | null): boolean {
+    return (
+      ['parsed', 'embedding', 'ready'].includes(status) ||
+      (status === 'failed' && errorCode === 'EMBEDDING_FAILED')
     );
-    if (completed.matchedCount === 0) throw this.documentNotReady();
+  }
+
+  private async embedInOrder(texts: readonly string[]): Promise<number[][]> {
+    const results = new Array<number[]>(texts.length);
+    let nextIndex = 0;
+    const run = async () => {
+      while (nextIndex < texts.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        const text = texts[index];
+        if (text !== undefined) results[index] = await this.embedder.embed(text);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, texts.length) }, run));
+    return results;
   }
 
   private documentNotReady(): DomainError {

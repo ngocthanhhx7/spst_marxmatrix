@@ -46,7 +46,7 @@
 }
 .copilot__workspace {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 272px;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(360px, 2fr) minmax(250px, 0.9fr);
   border-bottom: 1px solid var(--cp-rule);
 }
 .copilot__rail {
@@ -129,19 +129,27 @@
 }
 .copilot__private-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: stretch;
   border-bottom: 1px solid var(--cp-rule);
 }
 .copilot__private-row .copilot__source-row {
+  min-width: 0;
   border-bottom: 0;
+}
+.copilot__source-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .copilot__private-row .copilot__source-row[data-ready='false'] {
   cursor: default;
   opacity: 0.65;
 }
 .copilot__private-delete {
-  min-height: 32px !important;
+  align-self: center;
+  width: 48px;
+  min-height: 44px !important;
   padding: 0 7px !important;
   color: var(--cp-muted) !important;
   font-size: 0.65rem;
@@ -161,6 +169,7 @@
   color: var(--cp-cyan);
 }
 .copilot__source-row input {
+  flex: 0 0 auto;
   width: 17px;
   height: 17px;
   margin: 2px 0 0;
@@ -171,6 +180,8 @@
   display: block;
 }
 .copilot__source-row strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 0.88rem;
 }
 .copilot__source-row small {
@@ -455,7 +466,7 @@
   font-family: var(--font-data, ui-monospace, monospace);
   font-size: 0.68rem;
 }
-@media (max-width: 850px) {
+@media (max-width: 980px) {
   .copilot,
   .source {
     width: min(100% - 32px, 620px);

@@ -4,10 +4,13 @@ export interface TextEmbedder {
   embed(text: string): Promise<number[]>;
 }
 
+/** Shared persisted-vector width for demo, local Mongo and Atlas repositories. */
+export const RAG_EMBEDDING_DIMENSION = 768;
+
 /** Deterministic, non-network demo embedding; live providers must be explicitly configured separately. */
 export class DeterministicTextEmbedder implements TextEmbedder {
   embed(text: string): Promise<number[]> {
-    const vector = new Array<number>(64).fill(0);
+    const vector = new Array<number>(RAG_EMBEDDING_DIMENSION).fill(0);
     for (const token of text
       .normalize('NFKC')
       .toLocaleLowerCase('vi-VN')

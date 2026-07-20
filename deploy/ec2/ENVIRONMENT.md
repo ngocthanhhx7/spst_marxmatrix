@@ -68,7 +68,7 @@ AI_PROVIDER=gemini
 DEMO_MODE=false
 ```
 
-MongoDB Atlas must contain a vector-search index named `rag_chunks_vector_index` over the `embedding` field, with filter fields for `ownerId`, `courseId`, `documentId`, and `parseToken`.
+MongoDB Atlas must contain a vector-search index named `rag_chunks_vector_index` over the `embedding` field with `numDimensions: 768`, plus filter fields for `ownerId`, `courseId`, `documentId`, and `parseToken`. After changing to `gemini-embedding-2`, recreate the index if necessary and re-index or re-upload every previously ready document; vectors from the former model are not compatible.
 
 ## Activate after editing
 

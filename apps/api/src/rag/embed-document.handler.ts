@@ -23,7 +23,7 @@ export class EmbedDocumentHandler implements JobHandler, OnModuleInit {
     try {
       await this.ingestion.reindexDocument(job.payload.documentId.toString());
     } catch (error: unknown) {
-      if (this.isPublicRagError(error)) throw new JobHandlerFailure('EMBEDDING_FAILED', false);
+      if (this.isPublicRagError(error)) throw new JobHandlerFailure('EMBEDDING_FAILED');
       throw error;
     }
     if (signal.aborted) throw new Error('Worker operation was aborted.');

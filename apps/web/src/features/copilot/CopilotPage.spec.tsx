@@ -136,4 +136,66 @@ describe('CopilotPage', () => {
     expect((body as FormData).get('courseId')).toBeNull();
     expect(await screen.findByText('Báo cáo riêng')).toBeInTheDocument();
   });
+
+  it.each([
+    ['OCR_UNSUPPORTED', /PDF quét ảnh.*OCR/i],
+    ['PDF_PARSE_FAILED', /bảo vệ.*xuất lại/i],
+    ['EMBEDDING_FAILED', /lập chỉ mục.*thử lại/i]
+  ])('shows safe Vietnamese guidance for %s', async (errorCode, guidance) => {
+    request.mockImplementation((path: string) =>
+      path === '/copilot/documents'
+        ? Promise.resolve([
+            {
+              id: '507f1f77bcf86cd799439013',
+              title: 'Tài liệu lỗi',
+              status: 'failed',
+              mimeType: 'application/pdf',
+              originalFileName: 'failed.pdf',
+              byteSize: 12,
+              pageCount: 0,
+              errorCode,
+              errorMessage: 'raw provider detail must stay hidden',
+              createdAt: '2026-07-20T00:00:00.000Z',
+              updatedAt: '2026-07-20T00:00:00.000Z'
+            }
+          ])
+        : Promise.resolve([])
+    );
+
+    renderPage();
+    expect(await screen.findByText(guidance)).toBeInTheDocument();
+    expect(screen.queryByText(/raw provider detail/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps a long private filename inside its source row with a separate delete action', async () => {
+    const title = 'bao-cao-phan-tich-chuyen-sau-voi-ten-tep-rat-dai-khong-co-khoang-trang.pdf';
+    request.mockImplementation((path: string) =>
+      path === '/copilot/documents'
+        ? Promise.resolve([
+            {
+              id: '507f1f77bcf86cd799439013',
+              title,
+              status: 'ready',
+              mimeType: 'application/pdf',
+              originalFileName: title,
+              byteSize: 12,
+              pageCount: 2,
+              errorCode: null,
+              errorMessage: null,
+              createdAt: '2026-07-20T00:00:00.000Z',
+              updatedAt: '2026-07-20T00:00:00.000Z'
+            }
+          ])
+        : Promise.resolve([])
+    );
+
+    renderPage();
+    const filename = await screen.findByText(title);
+    expect(filename.parentElement).toHaveClass('copilot__source-copy');
+    const row = filename.closest('.copilot__private-row');
+    expect(row).not.toBeNull();
+    expect(row?.querySelector('.copilot__private-delete')).toBe(
+      screen.getByRole('button', { name: `Xóa ${title}` })
+    );
+  });
 });

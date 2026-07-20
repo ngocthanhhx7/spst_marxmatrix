@@ -68,7 +68,7 @@ const baseEnvironmentSchema = z.object({
     z.string().min(1).optional()
   ),
   GEMINI_GENERATION_MODEL: z.string().min(1).default('gemini-2.5-flash'),
-  GEMINI_EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-001'),
+  GEMINI_EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-2'),
   RAG_VECTOR_PROVIDER: z.enum(['local', 'atlas']).default('local'),
   AI_REQUEST_TIMEOUT_MS: numericString,
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(10),

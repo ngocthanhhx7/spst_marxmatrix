@@ -96,14 +96,15 @@ describe('GeminiRagProvider', () => {
     }
   });
 
-  it('uses the configured embedding model with a fixed Atlas-compatible dimension', async () => {
+  it('uses the Embedding 2 query prefix without the retired taskType field', async () => {
     const testClient = client();
     await expect(provider(testClient).embedQuery('gia tri')).resolves.toHaveLength(
       RAG_EMBEDDING_DIMENSION
     );
     type EmbedInput = {
       model: string;
-      config: { taskType: string; outputDimensionality: number };
+      contents: string;
+      config: { outputDimensionality: number; taskType?: string };
     };
     const models = Reflect.get(testClient, 'models') as {
       embedContent: GeminiRagClient['models']['embedContent'];
@@ -113,8 +114,22 @@ describe('GeminiRagProvider', () => {
     };
     const invocation = embedMock.mock?.calls[0]?.[0];
     expect(invocation?.model).toBe('gemini-embedding-test');
-    expect(invocation?.config?.taskType).toBe('RETRIEVAL_QUERY');
+    expect(invocation?.contents).toBe('task: search result | query: gia tri');
+    expect(invocation?.config).not.toHaveProperty('taskType');
     expect(invocation?.config?.outputDimensionality).toBe(RAG_EMBEDDING_DIMENSION);
+    expect(RAG_EMBEDDING_DIMENSION).toBe(768);
+  });
+
+  it('uses the Embedding 2 document prefix without the retired taskType field', async () => {
+    const testClient = client();
+    await provider(testClient).embed('noi dung');
+    const embedMock = Reflect.get(testClient.models, 'embedContent') as ReturnType<typeof vi.fn>;
+    const invocation = embedMock.mock.calls[0]?.[0] as
+      | { contents: string; config: Record<string, unknown> }
+      | undefined;
+
+    expect(invocation?.contents).toBe('title: none | text: noi dung');
+    expect(invocation?.config).not.toHaveProperty('taskType');
   });
 
   it('rejects an embedding whose dimension cannot match the persisted vector index', async () => {

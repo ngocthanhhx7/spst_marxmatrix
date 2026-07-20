@@ -9,11 +9,11 @@ import {
 import { z } from 'zod';
 import { DomainError } from '../common/domain-error.js';
 import { RAG_INSUFFICIENT_EVIDENCE_WARNING } from './citation-firewall.js';
-import type { TextEmbedder } from './deterministic-embedder.js';
+import { RAG_EMBEDDING_DIMENSION, type TextEmbedder } from './deterministic-embedder.js';
 import type { RagResponseGenerator } from './rag.service.js';
 
 /** Keep demo, local Mongo and Atlas vectors interoperable without silent index drift. */
-export const RAG_EMBEDDING_DIMENSION = 64;
+export { RAG_EMBEDDING_DIMENSION } from './deterministic-embedder.js';
 export const GEMINI_RAG_PROMPT_VERSION = 'gemini-rag-v1';
 
 type GeminiUsage = {
@@ -31,7 +31,6 @@ export interface GeminiRagClient {
       model: string;
       contents: string;
       config: {
-        taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY';
         outputDimensionality: number;
         abortSignal: AbortSignal;
       };
@@ -102,11 +101,11 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
   }
 
   embed(text: string): Promise<number[]> {
-    return this.embedWithTask(text, 'RETRIEVAL_DOCUMENT');
+    return this.embedForRetrieval(text, 'document');
   }
 
   embedQuery(text: string): Promise<number[]> {
-    return this.embedWithTask(text, 'RETRIEVAL_QUERY');
+    return this.embedForRetrieval(text, 'query');
   }
 
   async generate(input: RagQuery, context: readonly RetrievedChunk[]): Promise<RagResponse> {
@@ -148,10 +147,7 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
     return candidate;
   }
 
-  private async embedWithTask(
-    text: string,
-    taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY'
-  ): Promise<number[]> {
+  private async embedForRetrieval(text: string, purpose: 'document' | 'query'): Promise<number[]> {
     if (text.trim().length === 0)
       throw new DomainError('RAG_EMBEDDING_INVALID', 'Embedding input must not be empty.', 422);
     const startedAt = Date.now();
@@ -159,8 +155,11 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
       this.withTimeout((signal) =>
         this.client.models.embedContent({
           model: this.options.embeddingModel,
-          contents: text,
-          config: { taskType, outputDimensionality: RAG_EMBEDDING_DIMENSION, abortSignal: signal }
+          contents:
+            purpose === 'document'
+              ? `title: none | text: ${text}`
+              : `task: search result | query: ${text}`,
+          config: { outputDimensionality: RAG_EMBEDDING_DIMENSION, abortSignal: signal }
         })
       )
     );
@@ -179,7 +178,7 @@ export class GeminiRagProvider implements TextEmbedder, RagResponseGenerator {
       event: 'rag_embedding_completed',
       provider: 'gemini',
       model: this.options.embeddingModel,
-      taskType,
+      purpose,
       dimension: values.length,
       durationMs: Math.max(0, Date.now() - startedAt)
     });

@@ -147,12 +147,14 @@ export class WorkerRunner {
 
   private async poll(pollMs: number): Promise<void> {
     while (!this.stopped && !this.abortController.signal.aborted) {
+      let handledWork = false;
       try {
-        await this.runOnce();
+        handledWork = await this.runOnce();
       } catch {
         // Claim/database outages are isolated; the next bounded poll may recover.
       }
       if (this.stopped || this.abortController.signal.aborted) return;
+      if (handledWork) continue;
       await new Promise<void>((resolve) => {
         const wake = () => {
           if (this.timer !== undefined) clearTimeout(this.timer);
