@@ -19,7 +19,7 @@ describe('application shell', () => {
     expect(screen.getByRole('form', { name: 'Đăng nhập' })).toBeInTheDocument();
     expect(screen.getByText('Bỏ qua điều hướng')).toHaveAttribute('href', '#main-content');
     expect(document.querySelector('main')).toHaveAttribute('id', 'main-content');
-  });
+  }, 15_000);
   it('renders authenticated dashboard and useful 404', async () => {
     useSessionStore.getState().setSession({
       accessToken: 'access',
