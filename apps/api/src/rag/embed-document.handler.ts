@@ -23,7 +23,8 @@ export class EmbedDocumentHandler implements JobHandler, OnModuleInit {
     try {
       await this.ingestion.reindexDocument(job.payload.documentId.toString(), signal);
     } catch (error: unknown) {
-      if (this.isPublicRagError(error)) throw new JobHandlerFailure('EMBEDDING_FAILED');
+      if (this.isPublicRagError(error))
+        throw new JobHandlerFailure('EMBEDDING_FAILED', this.isTransientRagError(error));
       throw error;
     }
     if (signal.aborted) throw new Error('Worker operation was aborted.');
@@ -36,6 +37,13 @@ export class EmbedDocumentHandler implements JobHandler, OnModuleInit {
       'code' in error &&
       typeof (error as { code?: unknown }).code === 'string' &&
       (error as { code: string }).code.startsWith('RAG_')
+    );
+  }
+
+  private isTransientRagError(error: unknown): boolean {
+    if (!this.isPublicRagError(error)) return false;
+    return ['RAG_AI_TIMEOUT', 'RAG_AI_REQUEST_FAILED', 'RAG_EMBEDDING_BUSY'].includes(
+      (error as { code: string }).code
     );
   }
 }

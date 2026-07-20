@@ -23,6 +23,30 @@ describe('EmbedDocumentHandler', () => {
     ).rejects.toMatchObject({ errorCode: 'EMBEDDING_FAILED', retryable: true });
   });
 
+  it.each([
+    ['RAG_DOCUMENT_NOT_READY', 409],
+    ['RAG_DOCUMENT_EMPTY', 422],
+    ['RAG_EMBEDDING_INVALID', 502],
+    ['RAG_AI_AUTH_FAILED', 503]
+  ])('does not retry permanent %s failures', async (code, statusCode) => {
+    const handler = new EmbedDocumentHandler(
+      {
+        reindexDocument: async () =>
+          Promise.reject(new DomainError(code, 'private permanent detail', statusCode))
+      } as never,
+      new JobHandlerRegistry()
+    );
+
+    await expect(
+      handler.handle(
+        {
+          payload: { documentId: { toString: () => '507f1f77bcf86cd799439011' } }
+        } as never,
+        new AbortController().signal
+      )
+    ).rejects.toMatchObject({ errorCode: 'EMBEDDING_FAILED', retryable: false });
+  });
+
   it('retries when another worker still holds the document embedding claim', async () => {
     const handler = new EmbedDocumentHandler(
       {
