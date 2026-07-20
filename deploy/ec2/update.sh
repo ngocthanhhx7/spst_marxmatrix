@@ -151,6 +151,10 @@ validate_nginx_source() {
 
 backup_one_config() {
   local backup_dir="$1" target="$2" name="$3"
+  if [[ -L "${target}" || ( -e "${target}" && ! -f "${target}" ) ]]; then
+    echo "Existing Nginx target ${target} is not a regular file." >&2
+    return 1
+  fi
   if [[ -e "${target}" ]]; then
     cp -p -- "${target}" "${backup_dir}/${name}"
     : > "${backup_dir}/${name}.existed"
@@ -203,8 +207,11 @@ rollback_nginx_configs() {
 install_nginx_atomically() {
   local source="$1" cloudflare_candidate="$2" backup_dir="$3"
   backup_nginx_configs "${backup_dir}" "${NGINX_TARGET}" "${CLOUDFLARE_TARGET}"
-  install -m 644 "${source}" "${NGINX_TARGET}"
-  install -m 644 "${cloudflare_candidate}" "${CLOUDFLARE_TARGET}"
+  if ! install -m 644 "${source}" "${NGINX_TARGET}" || \
+    ! install -m 644 "${cloudflare_candidate}" "${CLOUDFLARE_TARGET}"; then
+    rollback_nginx_configs "${backup_dir}"
+    return 1
+  fi
 
   CURRENT_STEP="validating staged Nginx configuration"
   if ! nginx -t; then
@@ -322,13 +329,15 @@ main() {
 
   CURRENT_STEP="generating Cloudflare real-IP configuration"
   nginx_work_dir="$(mktemp -d /tmp/marxmatrix-nginx.XXXXXX)"
+  mkdir -m 700 "${nginx_work_dir}/backup"
   generate_cloudflare_config "${nginx_work_dir}/cloudflare-realip.conf"
   CURRENT_STEP="installing validated service units"
   install -m 644 "${API_UNIT_SOURCE}" "${API_UNIT_TARGET}"
   install -m 644 "${WORKER_UNIT_SOURCE}" "${WORKER_UNIT_TARGET}"
   systemctl daemon-reload
   CURRENT_STEP="installing Nginx configuration atomically"
-  install_nginx_atomically "${NGINX_SOURCE}" "${nginx_work_dir}/cloudflare-realip.conf" "${nginx_work_dir}"
+  install_nginx_atomically "${NGINX_SOURCE}" "${nginx_work_dir}/cloudflare-realip.conf" \
+    "${nginx_work_dir}/backup"
 
   build_and_activate
   verify_final_state
