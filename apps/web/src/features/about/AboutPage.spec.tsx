@@ -67,16 +67,18 @@ describe('AboutPage', () => {
     render(<App />);
 
     await screen.findByRole('main');
-    for (const identifier of [
-      'HE186491',
-      'HE186135',
-      'HE182094',
-      'HE180437',
-      'HE190405',
-      'HE190690',
-      'HE190486',
-      'HE186034'
-    ]) expect(screen.getByText(new RegExp(identifier))).toBeInTheDocument();
+    expect(screen.getByText('Nguyễn Ngọc Thành HE186491')).toBeInTheDocument();
+    for (const member of [
+      'Vương Giang Trường HE186135',
+      'Vũ Kim Kỳ HE182094',
+      'Dương Tuấn Anh HE180437',
+      'Nguyễn Xuân Dương HE190405',
+      'Trần Đức Minh HE190690',
+      'Phạm Hải Trung HE190486',
+      'Nguyễn Khắc Tráng HE186034',
+      'Các thành viên và cộng tác viên khác'
+    ])
+      expect(screen.getByText(member)).toBeInTheDocument();
   }, 15_000);
 
   it('documents the three history milestones and five-step evidence protocol', async () => {
