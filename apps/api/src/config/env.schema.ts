@@ -69,6 +69,17 @@ const baseEnvironmentSchema = z.object({
   ),
   GEMINI_GENERATION_MODEL: z.string().min(1).default('gemini-2.5-flash'),
   GEMINI_EMBEDDING_MODEL: z.string().min(1).default('gemini-embedding-2'),
+  CHAT_ENABLED: booleanFromString.default(false),
+  GEMINI_CHAT_MODEL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(1).optional()
+  ),
+  CHAT_AI_TIMEOUT_MS: numericString.max(120_000).default(60_000),
+  CHAT_AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  CHAT_MAX_CONTEXT_MESSAGES: numericString.max(100).default(20),
+  CHAT_MAX_CONTEXT_BYTES: numericString.max(500_000).default(100_000),
+  CHAT_MAX_RUN_AGE_MS: numericString.min(30_000).max(600_000).default(180_000),
+  CHAT_RATE_LIMIT_PER_MINUTE: numericString.max(100).default(10),
   RAG_VECTOR_PROVIDER: z.enum(['local', 'atlas']).default('local'),
   AI_REQUEST_TIMEOUT_MS: numericString,
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(10),
@@ -81,6 +92,13 @@ const baseEnvironmentSchema = z.object({
 });
 
 export const environmentSchema = baseEnvironmentSchema.superRefine((environment, context) => {
+  if (environment.CHAT_ENABLED && !environment.GEMINI_CHAT_MODEL)
+    context.addIssue({
+      code: 'custom',
+      path: ['GEMINI_CHAT_MODEL'],
+      message: 'GEMINI_CHAT_MODEL is required when CHAT_ENABLED=true.'
+    });
+
   const origins = environment.CORS_ORIGINS.split(',').map((origin) => origin.trim());
   if (origins.some((origin) => origin === '')) {
     context.addIssue({
