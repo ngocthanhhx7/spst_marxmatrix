@@ -130,6 +130,16 @@ describe('LandingPage', () => {
     expect(css).toContain('grid-template-columns: repeat(12, minmax(0, 1fr))');
   });
 
+  it('reserves landing footer clearance for the shared mobile navigation', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/features/landing/LandingPage.css'),
+      'utf8'
+    );
+
+    expect(css).toContain('@media (max-width: 69.99rem) {');
+    expect(css).toContain('padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));');
+  });
+
   it('renders the Figma footer navigation and system provenance', () => {
     renderPage();
     const footer = screen.getByRole('contentinfo');

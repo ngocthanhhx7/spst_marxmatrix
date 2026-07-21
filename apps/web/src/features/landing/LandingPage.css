@@ -704,6 +704,12 @@
   background: var(--landing-cyan);
 }
 
+@media (max-width: 69.99rem) {
+  .landing {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
+  }
+}
+
 @media (max-width: 760px) {
   .landing__utility-line {
     width: calc(100% - 32px);
