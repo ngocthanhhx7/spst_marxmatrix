@@ -49,7 +49,7 @@ export function LandingPage() {
   };
 
   return (
-    <main className="landing" data-screen="landing-01">
+    <main id="main-content" className="landing" data-screen="landing-01" tabIndex={-1}>
       <p className="landing__utility-line">MARXMATRIX / EDITORIAL SYSTEMS / 2026</p>
       <header className="landing__header" role="banner">
         <BrandMark />

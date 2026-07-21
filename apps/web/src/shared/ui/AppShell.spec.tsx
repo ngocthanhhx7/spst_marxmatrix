@@ -1,10 +1,12 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSessionStore } from '../../features/auth/session.js';
+import { LandingPage } from '../../features/landing/LandingPage.js';
+import { AuthFrame } from './AuthFrame.js';
 import { AppShell } from './AppShell.js';
 
 const productNavigationLabel = '\u0110i\u1ec1u h\u01b0\u1edbng s\u1ea3n ph\u1ea9m';
@@ -44,7 +46,7 @@ describe('AppShell', () => {
     );
   });
 
-  it.each(['/', '/about', '/dashboard'])('renders one shared banner for %s', (path) => {
+  it.each(['/', '/about', '/about/', '/dashboard'])('renders one shared banner for %s', (path) => {
     renderShellRoute(path);
 
     expect(screen.getAllByRole('banner')).toHaveLength(1);
@@ -52,7 +54,7 @@ describe('AppShell', () => {
     expect(screen.getAllByRole('navigation', { name: mobileNavigationLabel })).toHaveLength(1);
   });
 
-  it.each(['/login', '/register'])('does not render the shared banner for %s', (path) => {
+  it.each(['/login', '/register', '/login/', '/register/'])('does not render the shared banner for %s', (path) => {
     renderShellRoute(path);
 
     expect(screen.queryByRole('banner')).not.toBeInTheDocument();
@@ -61,7 +63,8 @@ describe('AppShell', () => {
 
   it.each([
     ['/', 'Home'],
-    ['/about', 'About']
+    ['/about', 'About'],
+    ['/about/', 'About']
   ])('%s lets the %s outlet own the only main landmark', (path, pageName) => {
     renderShellRoute(path, <main aria-label={pageName}>Page content</main>);
 
@@ -75,6 +78,35 @@ describe('AppShell', () => {
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
   });
+
+  it('targets the page-owned home main with the shared skip link', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<LandingPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+    expect(screen.getByRole('main')).toHaveAttribute('tabindex', '-1');
+    expect(document.querySelector('.skip-link')).toHaveAttribute('href', '#main-content');
+  });
+
+  it.each(['/login', '/register', '/login/', '/register/'])(
+    '%s lets AuthFrame own the only skip target main landmark',
+    (path) => {
+      renderShellRoute(path, <AuthFrame variant={path.startsWith('/login') ? 'login' : 'register'}>Form</AuthFrame>);
+
+      expect(screen.getAllByRole('main')).toHaveLength(1);
+      expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+      expect(screen.getByRole('main')).toHaveAttribute('tabindex', '-1');
+      expect(document.querySelector('.skip-link')).toHaveAttribute('href', '#main-content');
+    }
+  );
 
   it.each([
     ['/', <footer>Landing footer</footer>],
@@ -97,11 +129,38 @@ describe('AppShell', () => {
     expect(screen.getAllByRole('contentinfo')).toHaveLength(1);
   });
 
-  it('preserves the shared skip link and scroll restoration', () => {
+  it('restores the viewport after a route transition', () => {
     const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
-    renderShellRoute('/about', <main aria-label="About">Page content</main>);
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<Link to="/dashboard">Go to dashboard</Link>} />
+            <Route path="/dashboard" element={<section>Dashboard</section>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
 
-    expect(document.querySelector('.skip-link')).toHaveAttribute('href', '#main-content');
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('link', { name: 'Go to dashboard' }));
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+
+  it('restores the viewport when a trailing-slash transition changes the pathname', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    render(
+      <MemoryRouter initialEntries={['/about']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/about/*" element={<Link to="/about/">Add trailing slash</Link>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('link', { name: 'Add trailing slash' }));
+    expect(scrollTo).toHaveBeenCalledTimes(2);
   });
 });

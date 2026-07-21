@@ -28,7 +28,7 @@ export function AuthFrame({ variant, children }: AuthFrameProps) {
           </Link>
         </nav>
       </header>
-      <main className="auth-frame__content">
+      <main id="main-content" className="auth-frame__content" tabIndex={-1}>
         <section className="auth-frame__introduction" aria-labelledby="auth-frame-title">
           {isLogin ? (
             <>
