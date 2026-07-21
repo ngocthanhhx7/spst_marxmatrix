@@ -46,6 +46,21 @@ ALLOW_SELF_HOSTED_PRODUCTION=true
 DEMO_MODE=false
 ```
 
+Enable the education-and-finance chat workspace with these non-secret values:
+
+```dotenv
+CHAT_ENABLED=true
+GEMINI_CHAT_MODEL=<same validated multimodal model selected for chat>
+CHAT_AI_TIMEOUT_MS=60000
+CHAT_AI_MAX_RETRIES=2
+CHAT_MAX_CONTEXT_MESSAGES=20
+CHAT_MAX_CONTEXT_BYTES=100000
+CHAT_MAX_RUN_AGE_MS=180000
+CHAT_RATE_LIMIT_PER_MINUTE=10
+```
+
+Keep the existing `GEMINI_API_KEY`; do not paste it into chat, tickets, logs, or shell history. Confirm that `GEMINI_CHAT_MODEL` accepts both image input and structured output before restarting the API.
+
 Set `GEMINI_API_KEY` yourself. Generate two different JWT secrets directly on EC2:
 
 ```bash

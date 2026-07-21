@@ -49,6 +49,16 @@ cmp -s "${render_dir}/marxmatrix-api.service" "${script_dir}/marxmatrix-api.serv
 cmp -s "${render_dir}/marxmatrix-worker.service" "${script_dir}/marxmatrix-worker.service" || fail "worker unit rendering drifted"
 cmp -s "${render_dir}/nginx-marxmatrix-tls.conf" "${script_dir}/nginx-marxmatrix-tls.conf" || fail "Nginx rendering drifted"
 
+# Chat responses are newline-delimited streams and must bypass proxy buffering in
+# both the tracked template and the privileged updater-rendered candidate.
+for nginx_config in "${script_dir}/nginx-marxmatrix-tls.conf" "${render_dir}/nginx-marxmatrix-tls.conf"; do
+  assert_contains "${nginx_config}" 'location ~ ^/api/v1/chat/conversations/[^/]+/(messages|messages/[^/]+/regenerate)$ {'
+  assert_contains "${nginx_config}" 'proxy_buffering off;'
+  assert_contains "${nginx_config}" 'proxy_cache off;'
+  assert_contains "${nginx_config}" 'proxy_read_timeout 180s;'
+  assert_contains "${nginx_config}" 'proxy_send_timeout 180s;'
+done
+
 # Clean/dirty worktrees and the fixed trusted remote guard.
 repo="${test_root}/worktree"
 git init -q "${repo}"
