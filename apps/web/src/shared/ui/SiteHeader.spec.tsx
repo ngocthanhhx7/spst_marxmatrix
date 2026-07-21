@@ -1,4 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useSessionStore } from '../../features/auth/session.js';
@@ -18,6 +20,21 @@ afterEach(() => {
 });
 
 describe('SiteHeader', () => {
+  it('keeps guest and account actions in one compact row with accessible target heights', () => {
+    const globalCss = readFileSync(resolve(process.cwd(), 'src/styles/global.css'), 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+
+    expect(globalCss).toContain('.site-header > .account-navigation { grid-column: auto; }');
+    expect(globalCss).toContain(
+      '.account-navigation > a, .app-header-actions > a { display: inline-flex; align-items: center; min-height: 2.75rem; }'
+    );
+    expect(globalCss).toContain(
+      '@media (max-width: 24rem) { .site-header { gap: var(--space-2); } .site-header .brand-mark span { display: none; }'
+    );
+  });
+
   it('renders the shared product links for guests in desktop and mobile navigation', () => {
     render(
       <MemoryRouter initialEntries={['/']}>

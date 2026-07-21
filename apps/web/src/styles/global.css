@@ -1064,6 +1064,9 @@ button.text-link {
   border-bottom: 1px solid var(--color-rule);
   backdrop-filter: blur(14px);
 }
+.site-header > .account-navigation {
+  grid-column: auto;
+}
 .app-navigation {
   display: flex;
   gap: var(--space-1);
@@ -1095,6 +1098,12 @@ button.text-link {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+.account-navigation > a,
+.app-header-actions > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
 }
 .app-header-actions__evidence,
 .app-header-actions__account {
@@ -1203,5 +1212,16 @@ button.text-link {
   }
   .app-footer__status {
     order: 1;
+  }
+}
+@media (max-width: 24rem) {
+  .site-header {
+    gap: var(--space-2);
+  }
+  .site-header .brand-mark span {
+    display: none;
+  }
+  .site-header .account-navigation {
+    gap: var(--space-2) !important;
   }
 }
