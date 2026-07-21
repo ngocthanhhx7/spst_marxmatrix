@@ -33,6 +33,9 @@ describe('SiteHeader', () => {
     expect(globalCss).toContain(
       '@media (max-width: 24rem) { .site-header { gap: var(--space-2); } .site-header .brand-mark span { display: none; }'
     );
+    expect(globalCss).toContain(
+      '@media (max-width: 69.99rem) { .site-header { grid-template-columns: 1fr auto; min-height: 3.5rem; padding: 0 var(--space-4); } .site-header .app-navigation { display: none !important; }'
+    );
   });
 
   it('renders the shared product links for guests in desktop and mobile navigation', () => {

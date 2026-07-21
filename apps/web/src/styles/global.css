@@ -1155,7 +1155,7 @@ button.text-link {
 .app-footer__status {
   margin: 0;
 }
-@media (max-width: 44.99rem) {
+@media (max-width: 69.99rem) {
   .site-header {
     grid-template-columns: 1fr auto;
     min-height: 3.5rem;
