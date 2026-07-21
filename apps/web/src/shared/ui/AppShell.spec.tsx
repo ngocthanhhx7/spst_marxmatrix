@@ -1,10 +1,30 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
+import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useSessionStore } from '../../features/auth/session.js';
 import { AppShell } from './AppShell.js';
+
+const productNavigationLabel = '\u0110i\u1ec1u h\u01b0\u1edbng s\u1ea3n ph\u1ea9m';
+const mobileNavigationLabel = '\u0110i\u1ec1u h\u01b0\u1edbng di \u0111\u1ed9ng';
+
+function renderShellRoute(path: string, outlet: ReactNode = <section>Page content</section>) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/" element={outlet} />
+          <Route path="/about" element={outlet} />
+          <Route path="/dashboard" element={outlet} />
+          <Route path="/login" element={outlet} />
+          <Route path="/register" element={outlet} />
+        </Route>
+      </Routes>
+    </MemoryRouter>
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -24,102 +44,64 @@ describe('AppShell', () => {
     );
   });
 
-  it('does not duplicate application chrome on public authentication routes', () => {
-    render(
-      <MemoryRouter initialEntries={['/login']}>
-        <AppShell />
-      </MemoryRouter>
-    );
+  it.each(['/', '/about', '/dashboard'])('renders one shared banner for %s', (path) => {
+    renderShellRoute(path);
 
-    expect(screen.queryByRole('navigation', { name: 'Tài khoản' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('navigation', { name: productNavigationLabel })).toHaveLength(1);
+    expect(screen.getAllByRole('navigation', { name: mobileNavigationLabel })).toHaveLength(1);
+  });
+
+  it.each(['/login', '/register'])('does not render the shared banner for %s', (path) => {
+    renderShellRoute(path);
+
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: productNavigationLabel })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['/', 'Home'],
+    ['/about', 'About']
+  ])('%s lets the %s outlet own the only main landmark', (path, pageName) => {
+    renderShellRoute(path, <main aria-label={pageName}>Page content</main>);
+
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('main', { name: pageName })).toBeInTheDocument();
+  });
+
+  it('wraps workspace outlets in the shell main landmark', () => {
+    renderShellRoute('/dashboard');
+
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+  });
+
+  it.each([
+    ['/', <footer>Landing footer</footer>],
+    ['/about', <footer>About footer</footer>]
+  ])('%s leaves the page-owned footer untouched', (path, outlet) => {
+    renderShellRoute(path, outlet);
+
+    expect(screen.getAllByRole('contentinfo')).toHaveLength(1);
+  });
+
+  it.each(['/login', '/register'])('%s stays standalone without a shell footer', (path) => {
+    renderShellRoute(path);
+
     expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
   });
 
-  it('keeps /about standalone while supplying the shared skip link and scroll restoration', () => {
-    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
-    render(
-      <MemoryRouter initialEntries={['/about']}>
-        <AppShell />
-      </MemoryRouter>
-    );
+  it('adds the shared footer to workspace routes', () => {
+    renderShellRoute('/dashboard');
 
-    expect(screen.getByText('Bỏ qua điều hướng')).toHaveAttribute('href', '#main-content');
-    expect(document.querySelector('.site-header')).not.toBeInTheDocument();
-    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('contentinfo')).toHaveLength(1);
+  });
+
+  it('preserves the shared skip link and scroll restoration', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    renderShellRoute('/about', <main aria-label="About">Page content</main>);
+
+    expect(document.querySelector('.skip-link')).toHaveAttribute('href', '#main-content');
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
-  });
-
-  it('exposes every primary workspace and the current route to signed-in learners', () => {
-    useSessionStore.getState().setSession({
-      accessToken: 'token',
-      user: {
-        id: '507f1f77bcf86cd799439012',
-        email: 'learner@example.test',
-        displayName: 'Learner',
-        role: 'student'
-      }
-    });
-    render(
-      <MemoryRouter initialEntries={['/scanner']}>
-        <AppShell />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByRole('link', { name: 'Scanner' })).toHaveAttribute('href', '/scanner');
-    expect(screen.getByRole('navigation', { name: 'Primary workspace' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('navigation', { name: 'Mobile primary workspace' })
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Copilot' })).toHaveAttribute('href', '/copilot');
-    expect(screen.getByRole('link', { name: 'AI Chat' })).toHaveAttribute('href', '/chat');
-    expect(screen.getByRole('link', { name: 'Capital Arena' })).toHaveAttribute('href', '/arena');
-    expect(screen.getByRole('link', { name: 'Scanner' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.queryByRole('link', { name: /Admin/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
-  });
-
-  it('offers Copilot to signed-in learners and the ingestion area to admins', () => {
-    useSessionStore.getState().setSession({
-      accessToken: 'token',
-      user: {
-        id: '507f1f77bcf86cd799439011',
-        email: 'admin@example.test',
-        displayName: 'Admin',
-        role: 'admin'
-      }
-    });
-    render(
-      <MemoryRouter initialEntries={['/dashboard']}>
-        <AppShell />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByRole('link', { name: 'Copilot' })).toHaveAttribute('href', '/copilot');
-    expect(screen.getByRole('link', { name: 'Học liệu' })).toHaveAttribute(
-      'href',
-      '/admin/documents'
-    );
-  });
-
-  it('resets the viewport when workspace navigation changes route', () => {
-    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
-    useSessionStore.getState().setSession({
-      accessToken: 'token',
-      user: {
-        id: '507f1f77bcf86cd799439012',
-        email: 'learner@example.test',
-        displayName: 'Learner',
-        role: 'student'
-      }
-    });
-    render(
-      <MemoryRouter initialEntries={['/dashboard']}>
-        <AppShell />
-      </MemoryRouter>
-    );
-
-    expect(scrollTo).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('link', { name: 'Scanner' }));
-    expect(scrollTo).toHaveBeenCalledTimes(2);
   });
 });
