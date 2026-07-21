@@ -71,6 +71,7 @@ describe('AppShell', () => {
       screen.getByRole('navigation', { name: 'Mobile primary workspace' })
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Copilot' })).toHaveAttribute('href', '/copilot');
+    expect(screen.getByRole('link', { name: 'AI Chat' })).toHaveAttribute('href', '/chat');
     expect(screen.getByRole('link', { name: 'Capital Arena' })).toHaveAttribute('href', '/arena');
     expect(screen.getByRole('link', { name: 'Scanner' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByRole('link', { name: /Admin/i })).not.toBeInTheDocument();

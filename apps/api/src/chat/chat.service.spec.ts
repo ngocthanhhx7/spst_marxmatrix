@@ -2,6 +2,8 @@ import type { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
 import { describe, expect, it, vi } from 'vitest';
 import { decodeChatCursor } from './chat-cursor.js';
+import { ChatRunRegistry } from './chat-run-registry.js';
+import type { ChatScopePolicy } from './chat-scope-policy.js';
 import { ChatService, titleFrom } from './chat.service.js';
 
 type Row = Record<string, unknown> & { _id: Types.ObjectId };
@@ -43,6 +45,7 @@ function matches(row: Row, filter: Record<string, unknown>): boolean {
       const operators = condition as Record<string, unknown>;
       return Object.entries(operators).every(([operator, expected]) => {
         if (operator === '$lt') return comparable(actual)! < comparable(expected)!;
+        if (operator === '$lte') return comparable(actual)! <= comparable(expected)!;
         if (operator === '$gt') return comparable(actual)! > comparable(expected)!;
         if (operator === '$ne') return !equal(actual, expected);
         if (operator === '$in')
@@ -98,9 +101,7 @@ class Query<T extends Row> {
         return 0;
       });
     }
-    return Promise.resolve(
-      this.limitValue === undefined ? rows : rows.slice(0, this.limitValue)
-    );
+    return Promise.resolve(this.limitValue === undefined ? rows : rows.slice(0, this.limitValue));
   }
 }
 
@@ -129,20 +130,22 @@ class FixtureModel<T extends Row> {
 
   public findOne = vi.fn((filter: Record<string, unknown>) => {
     this.calls.push({ method: 'findOne', filter });
-    return new Query(
-      () => this.rows.find((row) => matches(row, filter)) ?? null,
-      this.selections
-    );
+    return new Query(() => this.rows.find((row) => matches(row, filter)) ?? null, this.selections);
   });
 
   public findOneAndUpdate = vi.fn(
-    (filter: Record<string, unknown>, update: { $set: Record<string, unknown> }) => {
+    (
+      filter: Record<string, unknown>,
+      update: { $set: Record<string, unknown> },
+      options?: { returnDocument?: 'before' | 'after' }
+    ) => {
       this.calls.push({ method: 'findOneAndUpdate', filter });
       return new Query(() => {
         const row = this.rows.find((candidate) => matches(candidate, filter));
         if (row === undefined) return null;
+        const before = { ...row };
         Object.assign(row, update.$set);
-        return row;
+        return options?.returnDocument === 'before' ? before : row;
       }, this.selections);
     }
   );
@@ -161,7 +164,7 @@ function conversation(
   owner = ownerId,
   updatedAt = new Date('2026-07-21T02:00:00.000Z'),
   deletionState: 'active' | 'deleted' = 'active'
-) {
+): Row & { activeRunId: string | null; activeRunStartedAt: Date | null } {
   return {
     _id: objectId(id),
     ownerId: new Types.ObjectId(owner),
@@ -234,6 +237,7 @@ function fixture(input?: {
   attachments?: ReturnType<typeof attachment>[];
   maxMessages?: number;
   maxBytes?: number;
+  policy?: Partial<ChatScopePolicy>;
 }) {
   const conversations = new FixtureModel(input?.conversations ?? [conversation(300)]);
   const messages = new FixtureModel(input?.messages ?? []);
@@ -243,6 +247,11 @@ function fixture(input?: {
     attachments.rows.map((item) => [item.gridFsFileId.toHexString(), item.bytes])
   );
   const storage = {
+    store: vi.fn((input: { buffer: Buffer }) => {
+      const id = objectId(9_000 + buffers.size);
+      buffers.set(id.toHexString(), input.buffer);
+      return Promise.resolve({ id });
+    }),
     read: vi.fn((id: Types.ObjectId) =>
       Promise.resolve(buffers.get(id.toHexString()) ?? Buffer.alloc(0))
     ),
@@ -265,17 +274,22 @@ function fixture(input?: {
     getOrThrow: vi.fn((key: string) => {
       if (key === 'CHAT_MAX_CONTEXT_MESSAGES') return input?.maxMessages ?? 20;
       if (key === 'CHAT_MAX_CONTEXT_BYTES') return input?.maxBytes ?? 100_000;
+      if (key === 'CHAT_MAX_RUN_AGE_MS') return 180_000;
+      if (key === 'CHAT_RATE_LIMIT_PER_MINUTE') return 10;
       throw new Error(`Unexpected config key: ${key}`);
     })
   } as unknown as ConfigService;
+  const runs = new ChatRunRegistry();
   const service = new ChatService(
     conversations as never,
     messages as never,
     attachments as never,
     storage as never,
-    config
+    config,
+    input?.policy as ChatScopePolicy | undefined,
+    runs
   );
-  return { service, conversations, messages, attachments, storage, events };
+  return { service, conversations, messages, attachments, storage, events, runs };
 }
 
 describe('titleFrom', () => {
@@ -345,7 +359,11 @@ describe('ChatService CRUD and public mapping', () => {
   it('paginates equal conversation timestamps without skips or duplicates', async () => {
     const timestamp = new Date('2026-07-21T06:00:00.000Z');
     const { service, conversations } = fixture({
-      conversations: [conversation(1, ownerId, timestamp), conversation(2, ownerId, timestamp), conversation(3, ownerId, timestamp)]
+      conversations: [
+        conversation(1, ownerId, timestamp),
+        conversation(2, ownerId, timestamp),
+        conversation(3, ownerId, timestamp)
+      ]
     });
 
     const first = await service.list(ownerId, { limit: 2 });
@@ -360,10 +378,7 @@ describe('ChatService CRUD and public mapping', () => {
     expect(conversations.find.mock.calls[1]?.[0]).toMatchObject({
       ownerId: new Types.ObjectId(ownerId),
       deletionState: 'active',
-      $or: [
-        { updatedAt: { $lt: timestamp } },
-        { updatedAt: timestamp, _id: { $lt: objectId(2) } }
-      ]
+      $or: [{ updatedAt: { $lt: timestamp } }, { updatedAt: timestamp, _id: { $lt: objectId(2) } }]
     });
   });
 
@@ -437,10 +452,7 @@ describe('ChatService CRUD and public mapping', () => {
     expect(messages.find.mock.calls[1]?.[0]).toMatchObject({
       ownerId: new Types.ObjectId(ownerId),
       conversationId: new Types.ObjectId(conversationId),
-      $or: [
-        { createdAt: { $gt: timestamp } },
-        { createdAt: timestamp, _id: { $gt: objectId(12) } }
-      ]
+      $or: [{ createdAt: { $gt: timestamp } }, { createdAt: timestamp, _id: { $gt: objectId(12) } }]
     });
   });
 
@@ -472,10 +484,11 @@ describe('ChatService CRUD and public mapping', () => {
 describe('ChatService delete', () => {
   it('tombstones first, cancels the durable run fence, removes bytes, then metadata', async () => {
     const image = attachment(601, 401);
-    const { service, conversations, attachments, messages, events } = fixture({
+    const { service, conversations, attachments, messages, events, runs } = fixture({
       messages: [message(401)],
       attachments: [image]
     });
+    const cancel = vi.spyOn(runs, 'cancel');
 
     await service.delete(ownerId, conversationId);
 
@@ -495,7 +508,7 @@ describe('ChatService delete', () => {
           activeRunStartedAt: null
         }
       },
-      expect.objectContaining({ returnDocument: 'after' })
+      expect.objectContaining({ returnDocument: 'before' })
     );
     expect(events).toEqual([
       `remove:${image.gridFsFileId.toHexString()}`,
@@ -511,8 +524,9 @@ describe('ChatService delete', () => {
       ownerId: new Types.ObjectId(ownerId),
       conversationId: new Types.ObjectId(conversationId)
     });
+    expect(cancel).toHaveBeenCalledWith(ownerId, 'private-run');
     expect(conversations.rows).toHaveLength(1);
-    expect(conversations.rows[0]?.deletionState).toBe('deleted');
+    expect(conversations.rows[0]?.['deletionState']).toBe('deleted');
   });
 
   it('retries owned tombstone cleanup idempotently', async () => {
@@ -550,7 +564,7 @@ describe('ChatService delete', () => {
     await expect(state.service.delete(ownerId, conversationId)).rejects.toThrow(
       'GridFS unavailable'
     );
-    expect(state.conversations.rows[0]?.deletionState).toBe('deleted');
+    expect(state.conversations.rows[0]?.['deletionState']).toBe('deleted');
     expect(state.attachments.rows).toHaveLength(1);
     expect(state.messages.rows).toHaveLength(1);
 
@@ -574,7 +588,11 @@ describe('ChatService context selection', () => {
   });
 
   it('uses the current message as input and retains only newest completed history chronologically', async () => {
-    const current = message(410, { text: 'current', status: 'pending' });
+    const current = message(410, {
+      text: 'current',
+      status: 'pending',
+      createdAt: new Date('2026-07-21T09:00:00.000Z')
+    });
     const sameTime = new Date('2026-07-21T08:00:00.000Z');
     const { service, messages } = fixture({
       maxMessages: 3,
@@ -604,8 +622,31 @@ describe('ChatService context selection', () => {
     expect(messages.find).toHaveBeenCalledWith({
       ownerId: new Types.ObjectId(ownerId),
       conversationId: new Types.ObjectId(conversationId),
-      _id: { $ne: objectId(410) },
-      status: 'completed'
+      status: 'completed',
+      $or: [
+        { createdAt: { $lt: current.createdAt } },
+        { createdAt: current.createdAt, _id: { $lt: current._id } }
+      ]
+    });
+  });
+
+  it('rejects an assistant current message and never includes future completed turns for regeneration', async () => {
+    const currentTime = new Date('2026-07-21T11:00:00.000Z');
+    const current = message(410, { text: 'retry this', createdAt: currentTime });
+    const { service } = fixture({
+      messages: [
+        message(401, { text: 'past', createdAt: new Date('2026-07-21T10:00:00.000Z') }),
+        current,
+        message(411, { text: 'future', createdAt: new Date('2026-07-21T12:00:00.000Z') }),
+        message(412, { role: 'assistant', text: 'assistant current', createdAt: currentTime })
+      ]
+    });
+
+    await expect(service.context(ownerId, conversationId, oid(412))).rejects.toMatchObject({
+      code: 'CHAT_CONVERSATION_NOT_FOUND'
+    });
+    await expect(service.context(ownerId, conversationId, oid(410))).resolves.toMatchObject({
+      history: [{ text: 'past' }]
     });
   });
 
@@ -617,7 +658,11 @@ describe('ChatService context selection', () => {
         message(401, { text: 'old' }),
         message(402, { text: 'đ', createdAt: new Date('2026-07-21T09:00:00.000Z') }),
         message(403, { text: '🙂', createdAt: new Date('2026-07-21T10:00:00.000Z') }),
-        message(410, { text: 'mandatory current', status: 'pending' })
+        message(410, {
+          text: 'mandatory current',
+          status: 'pending',
+          createdAt: new Date('2026-07-21T11:00:00.000Z')
+        })
       ]
     });
 
@@ -643,7 +688,8 @@ describe('ChatService context selection', () => {
         message(410, {
           text: 'current',
           status: 'pending',
-          attachmentIds: currentAttachments.map(({ _id }) => _id)
+          attachmentIds: currentAttachments.map(({ _id }) => _id),
+          createdAt: new Date('2026-07-21T11:00:00.000Z')
         })
       ],
       attachments: [...currentAttachments, ...newestAttachments, olderAttachment]
@@ -656,7 +702,9 @@ describe('ChatService context selection', () => {
     expect(result.history[0]?.images).toHaveLength(0);
     expect(result.history[1]?.images).toHaveLength(2);
     expect(storage.read).toHaveBeenCalledTimes(4);
-    expect(attachments.selections.filter((selection) => selection === '+gridFsFileId').length).toBeGreaterThanOrEqual(2);
+    expect(
+      attachments.selections.filter((selection) => selection === '+gridFsFileId').length
+    ).toBeGreaterThanOrEqual(2);
     for (const call of attachments.find.mock.calls) {
       expect(call[0]).toMatchObject({
         ownerId: new Types.ObjectId(ownerId),
@@ -677,7 +725,11 @@ describe('ChatService context selection', () => {
           attachmentIds: [retained._id],
           createdAt: new Date('2026-07-21T10:00:00.000Z')
         }),
-        message(410, { text: 'current', status: 'pending' })
+        message(410, {
+          text: 'current',
+          status: 'pending',
+          createdAt: new Date('2026-07-21T11:00:00.000Z')
+        })
       ],
       attachments: [excluded, retained]
     });
@@ -685,8 +737,172 @@ describe('ChatService context selection', () => {
     await service.context(ownerId, conversationId, oid(410));
 
     expect(storage.read).not.toHaveBeenCalled();
-    expect(attachments.find.mock.calls.some(([filter]) =>
-      equal(filter['messageId'], excluded.messageId)
-    )).toBe(false);
+    expect(
+      attachments.find.mock.calls.some(([filter]) => equal(filter['messageId'], excluded.messageId))
+    ).toBe(false);
+  });
+});
+
+describe('ChatService answer orchestration', () => {
+  it('persists one user and assistant attempt, emits terminal progress, and clears its exact run fence', async () => {
+    const policy = {
+      answer: vi.fn().mockResolvedValue({
+        status: 'completed',
+        text: 'Lãi kép là lãi tính trên cả gốc và lãi tích lũy.',
+        scope: 'finance',
+        candidate: {
+          model: 'test-model',
+          promptVersion: 'v1',
+          usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 }
+        }
+      })
+    } as unknown as ChatScopePolicy;
+    const state = fixture({ policy });
+    state.conversations.rows[0]!.activeRunId = null;
+    state.conversations.rows[0]!.activeRunStartedAt = null;
+    const events: string[] = [];
+
+    const result = await state.service.send(
+      ownerId,
+      conversationId,
+      { text: 'Giải thích lãi kép', files: [] },
+      (event) => events.push(event.type)
+    );
+
+    expect(events).toEqual(['checking_scope', 'generating', 'final']);
+    expect(result.message).toMatchObject({ status: 'completed', scope: 'finance' });
+    expect(state.conversations.rows[0]!.activeRunId).toBeNull();
+    expect(state.messages.rows.filter(({ role }) => role === 'user')).toHaveLength(1);
+    expect(state.messages.rows.filter(({ role }) => role === 'assistant')).toHaveLength(1);
+  });
+
+  it('does not create a second user or image bytes when regenerating an owned user message', async () => {
+    const policy = {
+      answer: vi.fn().mockResolvedValue({
+        status: 'refused',
+        text: 'Bạn muốn hỏi nội dung giáo dục hay tài chính cụ thể nào?',
+        scope: 'ambiguous',
+        reasonCode: 'scope_ambiguous'
+      })
+    } as unknown as ChatScopePolicy;
+    const image = attachment(501, 401);
+    const original = message(401, { text: 'Đọc biểu đồ này', attachmentIds: [image._id] });
+    const state = fixture({ messages: [original], attachments: [image], policy });
+    state.conversations.rows[0]!.activeRunId = null;
+    state.conversations.rows[0]!.activeRunStartedAt = null;
+
+    await state.service.regenerate(ownerId, conversationId, oid(401), vi.fn());
+
+    expect(state.messages.rows.filter(({ role }) => role === 'user')).toHaveLength(1);
+    expect(state.storage.remove).not.toHaveBeenCalled();
+    expect(state.storage.read).toHaveBeenCalled();
+  });
+
+  it('retains durable image bytes and marks the assistant attempt failed when generation fails', async () => {
+    const policy = {
+      answer: vi.fn().mockRejectedValue(new Error('provider detail'))
+    } as unknown as ChatScopePolicy;
+    const state = fixture({ policy });
+    state.conversations.rows[0]!.activeRunId = null;
+    state.conversations.rows[0]!.activeRunStartedAt = null;
+    const file = {
+      buffer: Buffer.from('image'),
+      originalFileName: 'chart.png',
+      mimeType: 'image/png' as const,
+      byteSize: 5,
+      checksum: 'a'.repeat(64)
+    };
+
+    await expect(
+      state.service.send(ownerId, conversationId, { text: 'Đọc biểu đồ', files: [file] }, vi.fn())
+    ).rejects.toThrow('provider detail');
+
+    expect(state.storage.remove).not.toHaveBeenCalled();
+    expect(state.messages.rows.find(({ role }) => role === 'assistant')?.status).toBe('failed');
+    expect(state.attachments.rows).toHaveLength(1);
+  });
+
+  it('rejects a live run, reclaims a stale run, and aborts only the exact owner run on cancellation', async () => {
+    let rejectAnswer: ((reason: unknown) => void) | undefined;
+    const policy = {
+      answer: vi.fn(
+        (_input: unknown, signal?: AbortSignal) =>
+          new Promise((_, reject) => {
+            rejectAnswer = reject;
+            signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+          })
+      )
+    } as unknown as ChatScopePolicy;
+    const state = fixture({ policy });
+    const staleController = state.runs.register(ownerId, 'private-run');
+
+    await expect(
+      state.service.send(ownerId, conversationId, { text: 'x', files: [] }, vi.fn())
+    ).rejects.toMatchObject({ code: 'CHAT_RUN_ACTIVE' });
+    expect(staleController.signal.aborted).toBe(false);
+    state.conversations.rows[0]!.activeRunStartedAt = new Date(0);
+    const events: Array<{ runId: string }> = [];
+    const pending = state.service.send(
+      ownerId,
+      conversationId,
+      { text: 'x', files: [] },
+      (event) => {
+        if ('runId' in event) events.push(event);
+      }
+    );
+    await vi.waitFor(() => expect(staleController.signal.aborted).toBe(true));
+    await vi.waitFor(() => expect(events[0]?.runId).toBeDefined());
+    await state.service.cancel(ownerId, conversationId, events[0]!.runId);
+    rejectAnswer?.(new Error('aborted'));
+    await expect(pending).rejects.toThrow('aborted');
+    expect(state.conversations.rows[0]!.activeRunId).toBeNull();
+  });
+
+  it('sets the title from only the first durable user message', async () => {
+    const policy = {
+      answer: vi.fn().mockResolvedValue({
+        status: 'refused',
+        text: 'Bạn muốn hỏi nội dung giáo dục hay tài chính cụ thể nào?',
+        scope: 'ambiguous',
+        reasonCode: 'scope_ambiguous'
+      })
+    } as unknown as ChatScopePolicy;
+    const state = fixture({ policy });
+    state.conversations.rows[0]!['title'] = 'Cuộc trò chuyện mới';
+    state.conversations.rows[0]!.activeRunId = null;
+    state.conversations.rows[0]!.activeRunStartedAt = null;
+
+    await state.service.send(
+      ownerId,
+      conversationId,
+      { text: 'Tiêu đề đầu tiên', files: [] },
+      vi.fn()
+    );
+    await state.service.send(
+      ownerId,
+      conversationId,
+      { text: 'Tiêu đề không được thay', files: [] },
+      vi.fn()
+    );
+
+    expect(state.conversations.rows[0]?.['title']).toBe('Tiêu đề đầu tiên');
+
+    const unchanged = fixture({ policy });
+    unchanged.conversations.rows[0]!['title'] = 'Cuộc trò chuyện mới';
+    unchanged.conversations.rows[0]!.activeRunId = null;
+    unchanged.conversations.rows[0]!.activeRunStartedAt = null;
+    await unchanged.service.send(
+      ownerId,
+      conversationId,
+      { text: 'Cuộc trò chuyện mới', files: [] },
+      vi.fn()
+    );
+    await unchanged.service.send(
+      ownerId,
+      conversationId,
+      { text: 'Không được đổi tên', files: [] },
+      vi.fn()
+    );
+    expect(unchanged.conversations.rows[0]?.['title']).toBe('Cuộc trò chuyện mới');
   });
 });

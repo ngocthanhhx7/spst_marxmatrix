@@ -107,13 +107,28 @@ describe('chatApi', () => {
     await expectInvalid(chunkedResponse([Uint8Array.of(0xe2, 0x82)]));
   });
 
+  it('rejects events that switch run ids within one response stream', async () => {
+    const otherRunId = 'a28f1b60-f41c-4f85-ae58-e0d061f3c5ad';
+    await expectInvalid(
+      chunkedResponse([
+        `{"type":"checking_scope","runId":"${runId}"}\n`,
+        `{"type":"error","runId":"${otherRunId}","code":"X","message":"Y"}\n`
+      ])
+    );
+  });
+
   it('propagates AbortError from the response request', async () => {
     const abort = new DOMException('Aborted', 'AbortError');
     response.mockRejectedValue(abort);
     const controller = new AbortController();
 
     await expect(
-      chatApi.sendMessage(conversationId, { text: 'Explain interest.', images: [] }, vi.fn(), controller.signal)
+      chatApi.sendMessage(
+        conversationId,
+        { text: 'Explain interest.', images: [] },
+        vi.fn(),
+        controller.signal
+      )
     ).rejects.toBe(abort);
   });
 });

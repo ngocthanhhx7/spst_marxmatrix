@@ -9,7 +9,8 @@ const primaryNavigation = [
   { to: '/dashboard', label: 'Bảng điều khiển' },
   { to: '/scanner', label: 'Scanner' },
   { to: '/copilot', label: 'Copilot' },
-  { to: '/arena', label: 'Capital Arena' }
+  { to: '/arena', label: 'Capital Arena' },
+  { to: '/chat', label: 'AI Chat' }
 ] as const;
 export function AppShell() {
   const clear = useSessionStore((state) => state.clearSession);

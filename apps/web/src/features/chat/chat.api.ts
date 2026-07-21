@@ -29,6 +29,7 @@ export async function consumeChatStream(
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let pending = '';
   let terminal = false;
+  let streamRunId: string | undefined;
 
   const consumeLines = () => {
     let newlineIndex = pending.indexOf('\n');
@@ -45,6 +46,8 @@ export async function consumeChatStream(
         }
         const parsed = chatStreamEventSchema.safeParse(value);
         if (!parsed.success) throw invalidStream();
+        if (streamRunId === undefined) streamRunId = parsed.data.runId;
+        else if (parsed.data.runId !== streamRunId) throw invalidStream();
         terminal = terminalTypes.has(parsed.data.type);
         onEvent(parsed.data);
       }
@@ -94,11 +97,14 @@ export const chatApi = {
     const body = new FormData();
     body.append('text', input.text);
     for (const image of input.images) body.append('images', image);
-    const response = await apiClient.response(`/chat/conversations/${encodeURIComponent(id)}/messages`, {
-      method: 'POST',
-      body,
-      signal
-    });
+    const response = await apiClient.response(
+      `/chat/conversations/${encodeURIComponent(id)}/messages`,
+      {
+        method: 'POST',
+        body,
+        signal
+      }
+    );
     await consumeChatStream(response, onEvent);
   },
   regenerate: async (

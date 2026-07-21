@@ -7,14 +7,19 @@ import {
   chatCursorQuerySchema,
   type ChatConversationDetail,
   type ChatConversationSummary,
-  type ChatMessage
+  type ChatMessage,
+  type ChatStreamEvent
 } from '@marxmatrix/contracts';
 import { Model, Types } from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import { DomainError } from '../common/domain-error.js';
 import { decodeChatCursor, encodeChatCursor } from './chat-cursor.js';
 import { ChatImageStorageService } from './chat-image-storage.service.js';
+import type { ValidatedChatImage } from './chat-image-validation.js';
 import type { ChatImagePart, ChatModelInput } from './chat-provider.js';
+import { ChatRunRegistry } from './chat-run-registry.js';
+import { ChatScopePolicy } from './chat-scope-policy.js';
 import { ChatAttachmentRecord } from './schemas/chat-attachment.schema.js';
 import { ChatConversationRecord } from './schemas/chat-conversation.schema.js';
 import { ChatMessageRecord } from './schemas/chat-message.schema.js';
@@ -37,7 +42,9 @@ export class ChatService {
     @InjectModel(ChatAttachmentRecord.name)
     private readonly attachments: Model<ChatAttachmentRecord>,
     private readonly storage: ChatImageStorageService,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+    private readonly policy?: ChatScopePolicy,
+    private readonly runs: ChatRunRegistry = new ChatRunRegistry()
   ) {}
 
   public async create(ownerId: string): Promise<ChatConversationSummary> {
@@ -157,7 +164,7 @@ export class ChatService {
             activeRunStartedAt: null
           }
         },
-        { returnDocument: 'after' }
+        { returnDocument: 'before' }
       )
       .select('+deletionState')
       .lean()
@@ -174,6 +181,8 @@ export class ChatService {
         .exec()) as unknown as ConversationView | null;
       if (existingTombstone === null) this.notFound();
     }
+    if (tombstoned?.activeRunId !== null && tombstoned?.activeRunId !== undefined)
+      this.runs.cancel(ownerId, tombstoned.activeRunId);
     const owned = { ownerId: ownerObjectId, conversationId: conversationObjectId };
     const storedAttachments = (await this.attachments
       .find(owned)
@@ -198,7 +207,8 @@ export class ChatService {
       .findOne({
         _id: currentObjectId,
         ownerId: ownerObjectId,
-        conversationId: conversationObjectId
+        conversationId: conversationObjectId,
+        role: 'user'
       })
       .lean()
       .exec()) as unknown as MessageView | null;
@@ -218,8 +228,11 @@ export class ChatService {
       .find({
         ownerId: ownerObjectId,
         conversationId: conversationObjectId,
-        _id: { $ne: currentObjectId },
-        status: 'completed'
+        status: 'completed',
+        $or: [
+          { createdAt: { $lt: current.createdAt } },
+          { createdAt: current.createdAt, _id: { $lt: current._id } }
+        ]
       })
       .sort({ createdAt: -1, _id: -1 })
       .limit(maxMessages)
@@ -250,6 +263,295 @@ export class ChatService {
     };
   }
 
+  public async send(
+    ownerId: string,
+    conversationId: string,
+    input: { text: string; files: readonly ValidatedChatImage[] },
+    emit: (event: ChatStreamEvent) => void,
+    existingUser?: MessageView
+  ): Promise<{ runId: string; message: ChatMessage }> {
+    const ownerObjectId = this.objectId(ownerId);
+    const conversationObjectId = this.objectId(conversationId);
+    const runId = randomUUID();
+    await this.claimRun(ownerObjectId, conversationObjectId, runId);
+    const controller = this.runs.register(ownerId, runId);
+    const userId = new Types.ObjectId();
+    const storedIds: Types.ObjectId[] = [];
+    let userDurable = false;
+    let assistant: MessageView | undefined;
+    let user: MessageView;
+    try {
+      if (existingUser !== undefined) {
+        user = existingUser;
+        userDurable = true;
+      } else {
+        const priorUser = await this.messages
+          .findOne({
+            ownerId: ownerObjectId,
+            conversationId: conversationObjectId,
+            role: 'user'
+          })
+          .lean()
+          .exec();
+        const attachmentIds: Types.ObjectId[] = [];
+        for (const file of input.files) {
+          const stored = await this.storage.store({
+            ownerId,
+            checksum: file.checksum,
+            originalFileName: file.originalFileName,
+            mimeType: file.mimeType,
+            buffer: file.buffer
+          });
+          const gridFsFileId = stored.id;
+          storedIds.push(gridFsFileId);
+          const attachment = await this.attachments.create({
+            _id: new Types.ObjectId(),
+            ownerId: ownerObjectId,
+            conversationId: conversationObjectId,
+            messageId: userId,
+            gridFsFileId,
+            originalFileName: file.originalFileName,
+            mimeType: file.mimeType,
+            byteSize: file.byteSize,
+            checksum: file.checksum
+          });
+          attachmentIds.push(attachment._id);
+        }
+        user = await this.messages.create({
+          _id: userId,
+          ownerId: ownerObjectId,
+          conversationId: conversationObjectId,
+          role: 'user',
+          text: input.text,
+          attachmentIds,
+          status: 'completed',
+          scope: null,
+          reasonCode: null,
+          replyToMessageId: null,
+          providerModel: null,
+          promptVersion: null,
+          usage: null
+        });
+        userDurable = true;
+        if (priorUser === null)
+          await this.conversations
+            .findOneAndUpdate(
+              { _id: conversationObjectId, ownerId: ownerObjectId, deletionState: 'active' },
+              { $set: { title: titleFrom(input.text, input.files.length > 0) } },
+              { returnDocument: 'after' }
+            )
+            .exec();
+      }
+      assistant = await this.messages.create({
+        _id: new Types.ObjectId(),
+        ownerId: ownerObjectId,
+        conversationId: conversationObjectId,
+        role: 'assistant',
+        text: '',
+        attachmentIds: [],
+        status: 'pending',
+        scope: null,
+        reasonCode: null,
+        replyToMessageId: user._id,
+        providerModel: null,
+        promptVersion: null,
+        usage: null
+      });
+      emit({ type: 'checking_scope', runId });
+      const modelInput = await this.context(ownerId, conversationId, user._id.toString());
+      if (
+        modelInput.images.length > 0 ||
+        modelInput.history.some(({ images }) => images.length > 0)
+      )
+        emit({ type: 'reading_images', runId });
+      emit({ type: 'generating', runId });
+      if (this.policy === undefined) throw new Error('Chat policy is unavailable.');
+      const result = await this.policy.answer(modelInput, controller.signal);
+      await this.assertRunActive(ownerObjectId, conversationObjectId, runId);
+      const update =
+        result.status === 'completed'
+          ? {
+              status: 'completed' as const,
+              text: result.text,
+              scope: result.scope,
+              reasonCode: null,
+              providerModel: result.candidate.model,
+              promptVersion: result.candidate.promptVersion,
+              usage: result.candidate.usage
+            }
+          : {
+              status: 'refused' as const,
+              text: result.text,
+              scope: result.scope,
+              reasonCode: result.reasonCode,
+              providerModel: null,
+              promptVersion: null,
+              usage: null
+            };
+      const completed = (await this.messages
+        .findOneAndUpdate(
+          {
+            _id: assistant._id,
+            ownerId: ownerObjectId,
+            conversationId: conversationObjectId,
+            status: 'pending'
+          },
+          { $set: update },
+          { returnDocument: 'after' }
+        )
+        .lean()
+        .exec()) as unknown as MessageView | null;
+      if (completed === null)
+        throw new DomainError('CHAT_RUN_CANCELLED', 'The chat run was cancelled.', 409);
+      const message = this.publicMessage(completed, new Map());
+      emit(
+        result.status === 'completed'
+          ? { type: 'final', runId, message }
+          : { type: 'refusal', runId, message }
+      );
+      return { runId, message };
+    } catch (error) {
+      if (!userDurable) {
+        for (const storedId of storedIds) await this.storage.remove(storedId);
+        await this.attachments.deleteMany({
+          ownerId: ownerObjectId,
+          conversationId: conversationObjectId,
+          messageId: userId
+        });
+      }
+      if (assistant !== undefined) {
+        const cancelled =
+          controller.signal.aborted ||
+          (error instanceof DomainError && error.code === 'CHAT_RUN_CANCELLED');
+        await this.messages
+          .findOneAndUpdate(
+            {
+              _id: assistant._id,
+              ownerId: ownerObjectId,
+              conversationId: conversationObjectId,
+              status: 'pending'
+            },
+            { $set: { status: cancelled ? 'cancelled' : 'failed' } },
+            { returnDocument: 'after' }
+          )
+          .exec();
+      }
+      const code = controller.signal.aborted ? 'CHAT_RUN_CANCELLED' : 'CHAT_AI_REQUEST_FAILED';
+      emit({
+        type: 'error',
+        runId,
+        code,
+        message:
+          code === 'CHAT_RUN_CANCELLED' ? 'The chat run was cancelled.' : 'Chat AI request failed.'
+      });
+      throw error;
+    } finally {
+      await this.clearRun(ownerObjectId, conversationObjectId, runId);
+      this.runs.release(ownerId, runId);
+    }
+  }
+
+  public async regenerate(
+    ownerId: string,
+    conversationId: string,
+    userMessageId: string,
+    emit: (event: ChatStreamEvent) => void
+  ): Promise<{ runId: string; message: ChatMessage }> {
+    const ownerObjectId = this.objectId(ownerId);
+    const conversationObjectId = this.objectId(conversationId);
+    const userObjectId = this.objectId(userMessageId);
+    const user = (await this.messages
+      .findOne({
+        _id: userObjectId,
+        ownerId: ownerObjectId,
+        conversationId: conversationObjectId,
+        role: 'user'
+      })
+      .lean()
+      .exec()) as unknown as MessageView | null;
+    if (user === null) this.notFound();
+    return this.send(ownerId, conversationId, { text: user.text, files: [] }, emit, user);
+  }
+
+  public async cancel(ownerId: string, conversationId: string, runId: string): Promise<void> {
+    const ownerObjectId = this.objectId(ownerId);
+    const conversationObjectId = this.objectId(conversationId);
+    const updated = await this.conversations
+      .findOneAndUpdate(
+        {
+          _id: conversationObjectId,
+          ownerId: ownerObjectId,
+          deletionState: 'active',
+          activeRunId: runId
+        },
+        { $set: { activeRunId: null, activeRunStartedAt: null } },
+        { returnDocument: 'after' }
+      )
+      .lean()
+      .exec();
+    if (updated === null) await this.activeConversation(ownerObjectId, conversationObjectId);
+    this.runs.cancel(ownerId, runId);
+  }
+
+  private async claimRun(
+    ownerId: Types.ObjectId,
+    conversationId: Types.ObjectId,
+    runId: string
+  ): Promise<void> {
+    const staleBefore = new Date(
+      Date.now() - this.config.getOrThrow<number>('CHAT_MAX_RUN_AGE_MS')
+    );
+    const claimed = await this.conversations
+      .findOneAndUpdate(
+        {
+          _id: conversationId,
+          ownerId,
+          deletionState: 'active',
+          $or: [{ activeRunId: null }, { activeRunStartedAt: { $lte: staleBefore } }]
+        },
+        { $set: { activeRunId: runId, activeRunStartedAt: new Date() } },
+        { returnDocument: 'before' }
+      )
+      .lean()
+      .exec();
+    if (claimed !== null) {
+      const previousRunId = (claimed as unknown as ConversationView).activeRunId;
+      if (previousRunId !== null) this.runs.cancel(ownerId.toString(), previousRunId);
+      return;
+    }
+    const existing = await this.activeConversation(ownerId, conversationId);
+    if (existing.activeRunId !== null)
+      throw new DomainError('CHAT_RUN_ACTIVE', 'A chat response is already running.', 409);
+    this.notFound();
+  }
+
+  private async clearRun(
+    ownerId: Types.ObjectId,
+    conversationId: Types.ObjectId,
+    runId: string
+  ): Promise<void> {
+    await this.conversations
+      .findOneAndUpdate(
+        { _id: conversationId, ownerId, deletionState: 'active', activeRunId: runId },
+        { $set: { activeRunId: null, activeRunStartedAt: null } },
+        { returnDocument: 'after' }
+      )
+      .exec();
+  }
+
+  private async assertRunActive(
+    ownerId: Types.ObjectId,
+    conversationId: Types.ObjectId,
+    runId: string
+  ): Promise<void> {
+    const active = await this.conversations
+      .findOne({ _id: conversationId, ownerId, deletionState: 'active', activeRunId: runId })
+      .lean()
+      .exec();
+    if (active === null)
+      throw new DomainError('CHAT_RUN_CANCELLED', 'The chat run was cancelled.', 409);
+  }
+
   private async activeConversation(
     ownerId: Types.ObjectId,
     conversationId: Types.ObjectId
@@ -269,8 +571,7 @@ export class ChatService {
     imageLimit: number,
     byteLimit: number
   ): Promise<{ images: ChatImagePart[]; byteSize: number }> {
-    if (imageLimit <= 0 || message.attachmentIds.length === 0)
-      return { images: [], byteSize: 0 };
+    if (imageLimit <= 0 || message.attachmentIds.length === 0) return { images: [], byteSize: 0 };
     const rows = (await this.attachments
       .find({
         _id: { $in: message.attachmentIds },
@@ -345,11 +646,7 @@ export class ChatService {
   }
 
   private notFound(): never {
-    throw new DomainError(
-      'CHAT_CONVERSATION_NOT_FOUND',
-      'Chat conversation was not found.',
-      404
-    );
+    throw new DomainError('CHAT_CONVERSATION_NOT_FOUND', 'Chat conversation was not found.', 404);
   }
 }
 

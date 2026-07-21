@@ -71,6 +71,9 @@ const SettingsPage = lazy(async () =>
     default: module.SettingsPage
   }))
 );
+const ChatPage = lazy(async () =>
+  import('../features/chat/ChatPage.js').then((module) => ({ default: module.ChatPage }))
+);
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -150,6 +153,14 @@ export function AppRouter() {
                 element={
                   <LazyPage>
                     <CopilotPage />
+                  </LazyPage>
+                }
+              />
+              <Route
+                path="chat"
+                element={
+                  <LazyPage>
+                    <ChatPage />
                   </LazyPage>
                 }
               />

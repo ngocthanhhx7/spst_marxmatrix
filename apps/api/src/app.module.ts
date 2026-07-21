@@ -13,6 +13,7 @@ import { RagModule } from './rag/rag.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { RoomsModule } from './rooms/rooms.module.js';
 import { ArenaModule, ArenaRealtimeModule } from './arena/arena.module.js';
+import { ChatModule } from './chat/chat.module.js';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ArenaModule, ArenaRealtimeModule } from './arena/arena.module.js';
     ArenaRealtimeModule,
     RoomsModule,
     ArenaModule,
+    ChatModule,
     HealthModule
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }]
