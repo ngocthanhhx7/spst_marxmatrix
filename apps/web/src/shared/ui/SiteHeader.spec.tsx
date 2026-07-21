@@ -20,6 +20,23 @@ afterEach(() => {
 });
 
 describe('SiteHeader', () => {
+  it('uses direct-child specificity to hide long account details at compact widths', () => {
+    const globalCss = readFileSync(resolve(process.cwd(), 'src/styles/global.css'), 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+
+    expect(globalCss).toContain(
+      '.app-header-actions > .app-header-actions__evidence, .app-header-actions > .app-header-actions__status, .app-header-actions > .app-header-actions__account { display: none; }'
+    );
+    expect(globalCss).toContain(
+      '.app-header-actions > .app-header-actions__admin { display: none; }'
+    );
+    expect(globalCss).toContain(
+      '.app-header-actions > .app-header-actions__admin { display: inline-flex; }'
+    );
+  });
+
   it('keeps guest and account actions in one compact row with accessible target heights', () => {
     const globalCss = readFileSync(resolve(process.cwd(), 'src/styles/global.css'), 'utf8').replace(
       /\s+/g,
@@ -95,10 +112,21 @@ describe('SiteHeader', () => {
     expect(screen.getByLabelText('Hệ thống sẵn sàng')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/settings');
     expect(screen.getByRole('button', { name: 'Đăng xuất' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Học liệu' })).toHaveAttribute(
-      'href',
-      '/admin/documents'
-    );
+    expect(
+      within(screen.getByRole('navigation', { name: 'Điều hướng sản phẩm' })).getByRole('link', {
+        name: 'Học liệu'
+      })
+    ).toHaveAttribute('href', '/admin/documents');
+    expect(
+      within(document.querySelector('.app-header-actions') as HTMLElement).getByRole('link', {
+        name: 'Học liệu'
+      })
+    ).toHaveAttribute('href', '/admin/documents');
+    expect(
+      within(screen.getByRole('navigation', { name: 'Điều hướng di động' }))
+        .getAllByRole('link')
+        .map((link) => [link.textContent, link.getAttribute('href')])
+    ).toEqual(productLinks);
     expect(screen.queryByRole('link', { name: 'Đăng nhập' })).not.toBeInTheDocument();
   });
 });

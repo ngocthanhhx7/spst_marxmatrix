@@ -34,6 +34,11 @@ export function SiteHeader() {
             <Link className="app-header-actions__account" to="/settings">
               {user.displayName}
             </Link>
+            {user.role === 'admin' && (
+              <Link className="app-header-actions__admin" to="/admin/documents">
+                Học liệu
+              </Link>
+            )}
             <button type="button" onClick={signOut}>
               Đăng xuất
             </button>

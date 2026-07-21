@@ -1105,6 +1105,9 @@ button.text-link {
   align-items: center;
   min-height: 2.75rem;
 }
+.app-header-actions > .app-header-actions__admin {
+  display: none;
+}
 .app-header-actions__evidence,
 .app-header-actions__account {
   color: var(--color-text);
@@ -1164,10 +1167,13 @@ button.text-link {
   .site-header .app-navigation {
     display: none !important;
   }
-  .app-header-actions__evidence,
-  .app-header-actions__status,
-  .app-header-actions__account {
+  .app-header-actions > .app-header-actions__evidence,
+  .app-header-actions > .app-header-actions__status,
+  .app-header-actions > .app-header-actions__account {
     display: none;
+  }
+  .app-header-actions > .app-header-actions__admin {
+    display: inline-flex;
   }
   .app-header-actions button {
     min-height: 2.75rem;
