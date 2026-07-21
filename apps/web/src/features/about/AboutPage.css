@@ -54,50 +54,6 @@
   font-size: 0.62rem;
   letter-spacing: 0.12em;
 }
-.about__header {
-  display: flex;
-  align-items: center;
-  gap: 30px;
-  min-height: 72px;
-  padding-inline: max(40px, calc((100% - 1200px) / 2));
-  border-bottom: 1px solid var(--about-rule);
-}
-.about__header .brand-mark {
-  color: var(--about-cyan);
-  text-decoration: none;
-}
-.about__header .brand-mark svg {
-  width: 28px;
-  height: 28px;
-}
-.about__header > .brand-mark,
-.about__nav > a,
-.about__account-links > a {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-}
-.about__nav,
-.about__account-links {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  font-size: 0.8rem;
-}
-.about__nav {
-  margin-left: auto;
-}
-.about__nav a,
-.about__account-links > a:first-child {
-  color: var(--about-muted);
-  text-decoration: none;
-}
-.about__nav a[aria-current='page'] {
-  color: var(--about-cyan);
-}
-.about__menu-button {
-  display: none;
-}
 .about__button {
   display: inline-flex;
   min-height: 44px;
@@ -572,67 +528,6 @@
     padding: 9px 0;
     font-size: 0.48rem;
   }
-  .about__header {
-    position: relative;
-    gap: 13px;
-    min-height: 58px;
-    padding-inline: 16px;
-  }
-  .about__header .brand-mark {
-    gap: 6px;
-  }
-  .about__header .brand-mark svg {
-    width: 18px;
-    height: 18px;
-  }
-  .about__header .brand-mark span {
-    font-family: var(--font-data, monospace);
-    font-size: 0.66rem;
-  }
-  .about__menu-button {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    padding: 0;
-    border: 0;
-    color: var(--about-muted);
-    background: transparent;
-    font-family: var(--font-data, monospace);
-    font-size: 0.62rem;
-  }
-  .about__nav {
-    position: absolute;
-    top: 57px;
-    left: 0;
-    right: 0;
-    z-index: 2;
-    display: none;
-    margin: 0;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--about-rule);
-    background: var(--about-surface-raised);
-  }
-  .about__nav[data-open='true'] {
-    display: grid;
-  }
-  .about__nav a {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    border-bottom: 1px solid var(--about-rule);
-  }
-  .about__account-links {
-    gap: 0;
-    margin-left: auto;
-  }
-  .about__account-links > a:first-child {
-    display: none;
-  }
-  .about__account-links .about__button {
-    min-height: 44px;
-    padding-inline: 12px;
-    font-size: 0.55rem;
-  }
   .about__hero,
   .about__origin,
   .about__outcomes,
@@ -769,6 +664,12 @@
   .about__footer nav {
     justify-content: start;
     gap: 16px;
+  }
+}
+
+@media (max-width: 69.99rem) {
+  .about {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom));
   }
 }
 

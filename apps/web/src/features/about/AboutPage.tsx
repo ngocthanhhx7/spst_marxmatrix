@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { Link } from 'react-router';
 import { BrandMark } from '../../shared/ui/BrandMark.js';
-import { useSessionStore } from '../auth/session.js';
 import './AboutPage.css';
 
 const history = [
@@ -49,55 +47,9 @@ const team = [
 ] as const;
 
 export function AboutPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const user = useSessionStore((state) => state.user);
-
   return (
     <div className="about" data-screen="about-01">
       <p className="about__utility-line">MARXMATRIX / HỒ SƠ DỰ ÁN / HỒ SƠ CÔNG KHAI</p>
-      <header className="about__header" role="banner">
-        <BrandMark />
-        <button
-          className="about__menu-button"
-          type="button"
-          aria-expanded={menuOpen}
-          aria-controls="about-navigation"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          Trình đơn
-        </button>
-        <nav
-          id="about-navigation"
-          className="about__nav"
-          data-open={menuOpen}
-          aria-label="Điều hướng công khai"
-        >
-          <Link to="/#method">Phương pháp</Link>
-          <Link to="/#tools">Công cụ</Link>
-          <Link to="/arena">Capital Arena</Link>
-          <Link to="/#resources">Tài liệu</Link>
-          <Link to="/about" aria-current="page">
-            Giới thiệu
-          </Link>
-        </nav>
-        <div className="about__account-links">
-          {user ? (
-            <>
-              <Link to="/settings">{user.displayName}</Link>
-              <Link className="about__button about__button--amber" to="/dashboard">
-                Vào workspace
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link to="/login">Login</Link>
-              <Link className="about__button about__button--amber" to="/scanner/new">
-                Bắt đầu phân tích
-              </Link>
-            </>
-          )}
-        </div>
-      </header>
 
       <main id="main-content" tabIndex={-1}>
         <section className="about__hero about__frame" aria-labelledby="about-title">

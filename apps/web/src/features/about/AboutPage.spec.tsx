@@ -1,9 +1,11 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { App } from '../../app/App.js';
 import { useSessionStore } from '../auth/session.js';
+import { AboutPage } from './AboutPage.js';
 
 afterEach(() => {
   cleanup();
@@ -27,72 +29,54 @@ describe('AboutPage', () => {
     expect(screen.getByText('Bỏ qua điều hướng')).toHaveAttribute('href', '#main-content');
   }, 15_000);
 
-  it('keeps the public header routes, active About state and guest actions', async () => {
+  it('uses exactly one shared banner with the complete five-link product navigation', async () => {
     window.history.replaceState({}, '', '/about');
     render(<App />);
 
     await screen.findByRole('banner');
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
     const header = screen.getByRole('banner');
-    expect(within(header).getByRole('link', { name: 'Phương pháp' })).toHaveAttribute(
-      'href',
-      '/#method'
-    );
-    expect(within(header).getByRole('link', { name: 'Công cụ' })).toHaveAttribute(
-      'href',
-      '/#tools'
-    );
-    expect(within(header).getByRole('link', { name: 'Capital Arena' })).toHaveAttribute(
-      'href',
-      '/arena'
-    );
-    expect(within(header).getByRole('link', { name: 'Tài liệu' })).toHaveAttribute(
-      'href',
-      '/#resources'
-    );
-    const aboutLink = within(header).getByRole('link', { name: 'Giới thiệu' });
-    expect(aboutLink).toHaveAttribute('href', '/about');
-    expect(aboutLink).toHaveAttribute('aria-current', 'page');
-    expect(within(header).getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
-    expect(within(header).getByRole('link', { name: /Bắt đầu phân tích/i })).toHaveAttribute(
-      'href',
-      '/scanner/new'
-    );
+    expect(within(header).getByRole('link', { name: 'MarxMatrix' })).toHaveAttribute('href', '/');
+    const productNavigation = screen
+      .getAllByRole('navigation')
+      .find((navigation) => navigation.classList.contains('app-navigation'));
+    expect(productNavigation).toBeDefined();
+    const productLinks = within(productNavigation as HTMLElement).getAllByRole('link');
+    expect(productLinks).toHaveLength(5);
+    expect(productLinks.map((link) => link.getAttribute('href'))).toEqual([
+      '/dashboard',
+      '/scanner',
+      '/copilot',
+      '/arena',
+      '/chat'
+    ]);
   }, 15_000);
 
-  it('shows the signed-in account actions and the exact project team', async () => {
-    useSessionStore.getState().setSession({
-      accessToken: 'test-access-token',
-      user: {
-        id: 'learner-01',
-        displayName: 'Nguyễn An',
-        email: 'an@example.test',
-        role: 'student'
-      }
-    });
+  it('renders no local banner when used directly', () => {
+    render(
+      <MemoryRouter initialEntries={['/about']}>
+        <AboutPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+  });
+
+  it('keeps the exact project team', async () => {
     window.history.replaceState({}, '', '/about');
     render(<App />);
 
-    const header = await screen.findByRole('banner');
-    expect(within(header).getByRole('link', { name: 'Nguyễn An' })).toHaveAttribute(
-      'href',
-      '/settings'
-    );
-    expect(within(header).getByRole('link', { name: /Vào workspace/i })).toHaveAttribute(
-      'href',
-      '/dashboard'
-    );
-    expect(screen.getByText('Nguyễn Ngọc Thành HE186491')).toBeInTheDocument();
-    for (const member of [
-      'Vương Giang Trường HE186135',
-      'Vũ Kim Kỳ HE182094',
-      'Dương Tuấn Anh HE180437',
-      'Nguyễn Xuân Dương HE190405',
-      'Trần Đức Minh HE190690',
-      'Phạm Hải Trung HE190486',
-      'Nguyễn Khắc Tráng HE186034',
-      'Các thành viên và cộng tác viên khác'
-    ])
-      expect(screen.getByText(member)).toBeInTheDocument();
+    await screen.findByRole('main');
+    for (const identifier of [
+      'HE186491',
+      'HE186135',
+      'HE182094',
+      'HE180437',
+      'HE190405',
+      'HE190690',
+      'HE190486',
+      'HE186034'
+    ]) expect(screen.getByText(new RegExp(identifier))).toBeInTheDocument();
   }, 15_000);
 
   it('documents the three history milestones and five-step evidence protocol', async () => {
@@ -148,15 +132,16 @@ describe('AboutPage', () => {
     ).toBeInTheDocument();
   }, 15_000);
 
-  it('renders header, main and full Product/Resources/Legal footer as sibling landmarks', async () => {
+  it('renders shared banner, main and full Product/Resources/Legal footer as sibling landmarks', async () => {
     window.history.replaceState({}, '', '/about');
     render(<App />);
 
     const header = await screen.findByRole('banner');
     const main = screen.getByRole('main');
     const footer = screen.getByRole('contentinfo');
-    expect(header.parentElement).toBe(main.parentElement);
     expect(main.parentElement).toBe(footer.parentElement);
+    expect(header.parentElement).not.toBe(main.parentElement);
+    expect(main).toHaveAttribute('id', 'main-content');
     expect(main).toHaveAttribute('tabindex', '-1');
     for (const label of ['Product', 'Resources', 'Legal'])
       expect(within(footer).getByRole('navigation', { name: label })).toBeInTheDocument();
@@ -171,9 +156,11 @@ describe('AboutPage', () => {
     expect(css).toContain('@media (max-width: 48rem)');
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
     expect(css).toContain(':focus-visible');
-    expect(css).toMatch(
-      /\.about__header > \.brand-mark,[\s\S]*?\.about__account-links > a \{[\s\S]*?min-height: 44px;/
-    );
+    expect(css).not.toContain('.about__header');
+    expect(css).not.toContain('.about__nav');
+    expect(css).not.toContain('.about__menu-button');
+    expect(css).toContain('@media (max-width: 69.99rem)');
+    expect(css).toContain('padding-bottom: calc(3.5rem + env(safe-area-inset-bottom))');
     const footerBrandRule = css.match(/\.about__footer \.brand-mark \{([^}]*)\}/)?.[1] ?? '';
     expect(footerBrandRule).toContain('display: inline-flex');
     expect(footerBrandRule).toContain('min-width: 44px');
