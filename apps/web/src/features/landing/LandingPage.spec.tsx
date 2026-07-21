@@ -2,8 +2,9 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { useSessionStore } from '../auth/session.js';
+import { AppShell } from '../../shared/ui/AppShell.js';
 import { LandingPage } from './LandingPage.js';
 
 afterEach(() => {
@@ -11,7 +12,6 @@ afterEach(() => {
   vi.restoreAllMocks();
   useSessionStore.getState().clearSession();
 });
-
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -20,52 +20,45 @@ function renderPage() {
   );
 }
 
-describe('LandingPage', () => {
-  it('renders the Figma public header and real product routes', () => {
-    renderPage();
+const productNavigationLabel = 'Điều hướng sản phẩm';
 
+function renderHome() {
+  return render(
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/" element={<LandingPage />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+describe('LandingPage', () => {
+  it('uses one shared banner with the complete five-link product navigation on routed Home', () => {
+    renderHome();
+
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
     const header = screen.getByRole('banner');
     expect(within(header).getByText('MarxMatrix')).toBeInTheDocument();
-    expect(within(header).getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
-    expect(within(header).getByRole('link', { name: /Bắt đầu phân tích/i })).toHaveAttribute(
-      'href',
-      '/scanner/new'
-    );
-    expect(within(header).getByRole('link', { name: 'Phương pháp' })).toHaveAttribute(
-      'href',
-      '#method'
-    );
-    expect(within(header).getByRole('link', { name: 'Công cụ' })).toHaveAttribute('href', '#tools');
-    expect(within(header).getByRole('link', { name: 'Capital Arena' })).toHaveAttribute(
-      'href',
-      '/arena'
-    );
-    expect(within(header).getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
-  });
-
-  it('replaces public account actions with the authenticated user and workspace route', () => {
-    useSessionStore.getState().setSession({
-      accessToken: 'test-access-token',
-      user: {
-        id: 'learner-01',
-        displayName: 'Nguyễn An',
-        email: 'an@example.test',
-        role: 'student'
-      }
+    const productNavigation = within(header).getByRole('navigation', {
+      name: productNavigationLabel
     });
-
-    renderPage();
-
-    const header = screen.getByRole('banner');
-    expect(within(header).queryByRole('link', { name: 'Login' })).not.toBeInTheDocument();
-    expect(within(header).getByRole('link', { name: 'Nguyễn An' })).toHaveAttribute(
-      'href',
-      '/settings'
-    );
-    expect(within(header).getByRole('link', { name: /Vào workspace/i })).toHaveAttribute(
+    expect(within(productNavigation).getAllByRole('link')).toHaveLength(5);
+    expect(within(productNavigation).getByRole('link', { name: 'Bảng điều khiển' })).toHaveAttribute(
       'href',
       '/dashboard'
     );
+    expect(within(productNavigation).getByRole('link', { name: 'Scanner' })).toHaveAttribute('href', '/scanner');
+    expect(within(productNavigation).getByRole('link', { name: 'Copilot' })).toHaveAttribute('href', '/copilot');
+    expect(within(productNavigation).getByRole('link', { name: 'Capital Arena' })).toHaveAttribute('href', '/arena');
+    expect(within(productNavigation).getByRole('link', { name: 'AI Chat' })).toHaveAttribute('href', '/chat');
+  });
+
+  it('does not create a banner when rendered directly', () => {
+    renderPage();
+
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
   });
 
   it('matches the Figma hero and system-status specimen', () => {
@@ -119,12 +112,10 @@ describe('LandingPage', () => {
 
   it('moves focus when an in-page navigation link is activated', () => {
     renderPage();
-    const target = screen
-      .getByRole('heading', { name: 'Quy trình tổng hợp bằng chứng' })
-      .closest('section');
+    const target = document.getElementById('method');
     expect(target).not.toBeNull();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Phương pháp' }));
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Documentation' }));
     expect(target).toHaveFocus();
   });
 

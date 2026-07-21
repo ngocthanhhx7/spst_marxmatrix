@@ -1,7 +1,6 @@
-import { useState, type MouseEvent } from 'react';
+import { type MouseEvent } from 'react';
 import { Link } from 'react-router';
 import { BrandMark } from '../../shared/ui/BrandMark.js';
-import { useSessionStore } from '../auth/session.js';
 import './LandingPage.css';
 
 const analysisRows = [
@@ -33,9 +32,6 @@ const processSteps = [
 ] as const;
 
 export function LandingPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const user = useSessionStore((state) => state.user);
-
   const handleAnchorNavigation = (event: MouseEvent<HTMLAnchorElement>) => {
     const targetId = event.currentTarget.hash.slice(1);
     const target = document.getElementById(targetId);
@@ -45,62 +41,11 @@ export function LandingPage() {
     window.history.replaceState(null, '', `#${targetId}`);
     target.focus({ preventScroll: true });
     target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-    setMenuOpen(false);
   };
 
   return (
     <main id="main-content" className="landing" data-screen="landing-01" tabIndex={-1}>
       <p className="landing__utility-line">MARXMATRIX / EDITORIAL SYSTEMS / 2026</p>
-      <header className="landing__header" role="banner">
-        <BrandMark />
-        <button
-          className="landing__menu-button"
-          type="button"
-          aria-expanded={menuOpen}
-          aria-controls="landing-navigation"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <span>Menu</span>
-          <span aria-hidden="true">{menuOpen ? '×' : '＋'}</span>
-        </button>
-        <nav
-          id="landing-navigation"
-          className="landing__nav"
-          data-open={menuOpen}
-          aria-label="Điều hướng công khai"
-        >
-          <a href="#method" onClick={handleAnchorNavigation}>
-            Phương pháp
-          </a>
-          <a href="#tools" onClick={handleAnchorNavigation}>
-            Công cụ
-          </a>
-          <Link to="/about">About</Link>
-          <Link to="/arena">Capital Arena</Link>
-          <a href="#resources" onClick={handleAnchorNavigation}>
-            Tài liệu
-          </a>
-        </nav>
-        <div className="landing__account-links">
-          {user ? (
-            <>
-              <Link to="/settings">{user.displayName}</Link>
-              <Link className="landing__button landing__button--amber" to="/dashboard">
-                <span className="landing__desktop-label">Vào workspace</span>
-                <span className="landing__mobile-label">Workspace</span>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link to="/login">Login</Link>
-              <Link className="landing__button landing__button--amber" to="/scanner/new">
-                <span className="landing__desktop-label">Bắt đầu phân tích</span>
-                <span className="landing__mobile-label">Bắt đầu</span>
-              </Link>
-            </>
-          )}
-        </div>
-      </header>
 
       <section className="landing__hero" aria-labelledby="landing-title">
         <div className="landing__hero-copy">
