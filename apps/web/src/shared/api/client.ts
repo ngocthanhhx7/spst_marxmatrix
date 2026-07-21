@@ -11,6 +11,7 @@ export interface ApiClientOptions {
 }
 export interface ApiClient {
   request: <T = unknown>(path: string, init?: RequestInit) => Promise<T>;
+  response: (path: string, init?: RequestInit) => Promise<Response>;
 }
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
@@ -37,7 +38,11 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       });
     return refreshing;
   };
-  const request = async <T>(path: string, init: RequestInit = {}, retried = false): Promise<T> => {
+  const fetchAuthenticated = async (
+    path: string,
+    init: RequestInit = {},
+    retried = false
+  ): Promise<Response> => {
     const headers = new Headers(init.headers);
     const accessToken = options.getAccessToken?.();
     if (accessToken !== undefined) headers.set('authorization', `Bearer ${accessToken}`);
@@ -48,7 +53,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     });
     if (response.status === 401 && !retried && !path.endsWith('/auth/refresh')) {
       const nextToken = await refresh();
-      if (nextToken !== undefined) return request<T>(path, init, true);
+      if (nextToken !== undefined) return fetchAuthenticated(path, init, true);
     }
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as {
@@ -63,8 +68,14 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         body.details ?? []
       );
     }
-    if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
+    return response;
   };
-  return { request };
+  const response = (path: string, init?: RequestInit): Promise<Response> =>
+    fetchAuthenticated(path, init);
+  const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const rawResponse = await response(path, init);
+    if (rawResponse.status === 204) return undefined as T;
+    return (await rawResponse.json()) as T;
+  };
+  return { request, response };
 }
